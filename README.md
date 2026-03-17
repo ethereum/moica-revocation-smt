@@ -1,0 +1,1 @@
+# moica-revocation-smt-go
