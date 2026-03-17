@@ -27,6 +27,9 @@ make run      # starts REST + gRPC servers
 
 # or run tests
 make test
+
+# integration tests (fetches live CRL data, builds full SMT, ~30min)
+make test-integration
 ```
 
 ## API
@@ -110,7 +113,7 @@ npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"r
 ## CI/CD
 
 **`ci.yml`** — runs on push/PR to main:
-- Go server: `go test ./...` + build binary
+- Go server: `go test ./...` + build binary (integration tests excluded via `//go:build integration` tag)
 - Contracts: `npx hardhat test` (Node 22)
 
 **`update-smt.yml`** — runs every 6 hours (cron):
