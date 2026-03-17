@@ -1,0 +1,27 @@
+name: Update SMT
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: Fetch CRL & Update SMT
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - run: go mod download
+      - run: go build -o bin/smtserver ./cmd/smtserver
+
+      # TODO: Add steps to:
+      # 1. Run a one-shot CRL fetch + SMT build
+      # 2. Export snapshot
+      # 3. Upload snapshot to GitHub Release (snapshot-latest tag)
+      # 4. Post root on-chain (requires secrets: RPC_URL, RELAYER_PRIVATE_KEY, CONTRACT_ADDRESS)

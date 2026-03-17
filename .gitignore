@@ -1,0 +1,8 @@
+# Data and snapshots
+data/
+
+# Go server
+server/bin/
+
+# OS
+.DS_Store
