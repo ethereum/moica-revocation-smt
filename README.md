@@ -140,7 +140,7 @@ npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"r
 
 **`update-smt.yml`** — runs twice daily at 12:00/00:00 UTC+8 (04:00/16:00 UTC):
 1. Build server binary
-2. Fetch CRL, build SMT, export snapshot
+2. Fetch CRL, build SMT, export snapshot (skipped if merkle root is unchanged)
 3. Upload snapshot to GitHub Release
 4. Post root on-chain
 
