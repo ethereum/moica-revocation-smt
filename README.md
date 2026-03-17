@@ -32,6 +32,28 @@ make test
 make test-integration
 ```
 
+## Snapshots
+
+Pre-built SMT snapshots are published as GitHub Release assets (`snapshot-latest` tag), updated twice daily.
+
+When the server starts, it automatically:
+1. Loads local snapshots from `$DATA_DIR/{issuerID}/tree-snapshot.json.gz`
+2. Falls back to downloading from the GitHub release
+3. Falls back to rebuilding from live CRL data (slow, ~30 min)
+
+To manually download snapshots:
+```bash
+# Download latest snapshots
+cd server
+mkdir -p data/g2 data/g3
+curl -L -o data/g2/tree-snapshot.json.gz \
+  https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g2-tree-snapshot.json.gz
+curl -L -o data/g3/tree-snapshot.json.gz \
+  https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz
+```
+
+Snapshots are gzip-compressed JSON containing the full SMT node tree, compatible with `@zk-kit/smt` v1.0.2.
+
 ## API
 
 ### `GET /proof/{issuerId}/{sn}`
@@ -116,7 +138,7 @@ npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"r
 - Go server: `go test ./...` + build binary (integration tests excluded via `//go:build integration` tag)
 - Contracts: `npx hardhat test` (Node 22)
 
-**`update-smt.yml`** — runs every 6 hours (cron):
+**`update-smt.yml`** — runs twice daily at 12:00/00:00 UTC+8 (04:00/16:00 UTC):
 1. Build server binary
 2. Fetch CRL, build SMT, export snapshot
 3. Upload snapshot to GitHub Release
