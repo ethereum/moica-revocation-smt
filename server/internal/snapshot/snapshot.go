@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"os"
 
 	"github.com/moven0831/moica-revocation-smt/server/internal/smt"
 )
@@ -75,6 +76,16 @@ func Export(tree *smt.SMT, w io.Writer) error {
 
 	enc := json.NewEncoder(gw)
 	return enc.Encode(snapshot)
+}
+
+// ImportFile opens a gzip-compressed JSON snapshot file and reconstructs an SMT.
+func ImportFile(h smt.Hasher, path string) (*smt.SMT, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return Import(h, f)
 }
 
 // Import reads a gzip-compressed JSON snapshot and reconstructs an SMT.
