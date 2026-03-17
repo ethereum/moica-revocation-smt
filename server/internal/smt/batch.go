@@ -7,10 +7,13 @@ import (
 
 // BatchAdd inserts multiple key/value pairs into the tree.
 // Keys are added sequentially (SMT structure depends on insertion state).
-// For large batches, consider using BatchAddParallel for parallelized hashing.
+// Holds the lock once for the entire batch to avoid per-entry mutex overhead.
 func (t *SMT) BatchAdd(keys []*big.Int, value *big.Int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.growNodes(len(keys))
 	for _, key := range keys {
-		if err := t.Add(key, value); err != nil {
+		if err := t.addUnlocked(key, value); err != nil {
 			return err
 		}
 	}
@@ -18,10 +21,14 @@ func (t *SMT) BatchAdd(keys []*big.Int, value *big.Int) error {
 }
 
 // BatchAddWithProgress inserts entries and calls the progress callback periodically.
+// Holds the lock once for the entire batch to avoid per-entry mutex overhead.
 func (t *SMT) BatchAddWithProgress(keys []*big.Int, value *big.Int, batchSize int, onProgress func(done, total int)) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.growNodes(len(keys))
 	total := len(keys)
 	for i, key := range keys {
-		if err := t.Add(key, value); err != nil {
+		if err := t.addUnlocked(key, value); err != nil {
 			return err
 		}
 		if onProgress != nil && (i+1)%batchSize == 0 {

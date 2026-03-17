@@ -37,6 +37,19 @@ func NewWithDepth(h Hasher, depth int) *SMT {
 	}
 }
 
+// growNodes pre-sizes the internal nodes map if needed.
+// Each entry adds ~1 leaf + several branch nodes; estimate ~3x entries for safety.
+func (t *SMT) growNodes(additionalEntries int) {
+	needed := len(t.nodes) + additionalEntries*3
+	if needed > len(t.nodes) {
+		grown := make(map[string]ChildNodes, needed)
+		for k, v := range t.nodes {
+			grown[k] = v
+		}
+		t.nodes = grown
+	}
+}
+
 // nodeKey returns the map key for a big.Int node hash.
 func nodeKey(n *big.Int) string {
 	return n.Text(16)
@@ -63,7 +76,11 @@ func (t *SMT) Get(key *big.Int) *big.Int {
 func (t *SMT) Add(key, value *big.Int) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	return t.addUnlocked(key, value)
+}
 
+// addUnlocked is the lock-free core of Add, for use by batch methods that hold the lock.
+func (t *SMT) addUnlocked(key, value *big.Int) error {
 	entry, matchingEntry, siblings := t.retrieveEntry(key)
 
 	if len(entry) >= 2 && entry[1] != nil {
