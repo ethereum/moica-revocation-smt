@@ -1,57 +1,60 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# SMTRootStorage
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+On-chain registry for Sparse Merkle Tree roots from MOICA Certificate Revocation Lists.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Contract
 
-## Project Overview
+**SMTRootStorage.sol** (Solidity 0.8.28)
 
-This example project includes:
+| Function | Description |
+|----------|-------------|
+| `constructor(address _relayer)` | Sets the authorized relayer |
+| `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNumber)` | Update root (relayer only) |
+| `getRoot(bytes32 issuerId) → uint256` | Read current root |
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+**State:**
+```solidity
+address public relayer;
+mapping(bytes32 => RootInfo) public roots;
 
-## Usage
+struct RootInfo {
+    uint256 root;
+    uint256 crlNumber;
+    uint256 updatedAt;
+}
+```
 
-### Running Tests
+**Events:**
+```solidity
+event RootUpdated(bytes32 indexed issuerId, uint256 root, uint256 crlNumber);
+```
 
-To run all the tests in the project, execute the following command:
+**Modifiers:**
+- `onlyRelayer` — reverts with `"unauthorized"` for non-relayer callers
+- `setRoot` requires `crlNumber > roots[issuerId].crlNumber` (monotonic)
 
-```shell
+## Issuer IDs
+
+| Issuer | ID |
+|--------|----|
+| MOICA G2 | `keccak256("MOICA-G2")` |
+| MOICA G3 | `keccak256("MOICA-G3")` |
+
+## Setup
+
+```bash
+nvm use 22    # Hardhat 3 requires Node >= 22.10.0
+pnpm install
+```
+
+## Test
+
+```bash
 npx hardhat test
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
+## Deploy
 
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
-```
-
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
-
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+```bash
+npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"relayer":"0x..."}'
 ```
