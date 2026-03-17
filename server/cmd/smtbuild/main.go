@@ -82,8 +82,19 @@ func main() {
 		log.Printf("[%s] SMT built: count=%d, root=0x%s, duration=%v",
 			iss.ID, tree.Count, tree.Root.Text(16), time.Since(buildStart))
 
-		// Write output files
 		issuerDir := filepath.Join(cfg.DataDir, iss.ID)
+
+		// Check if root changed
+		newRoot := "0x" + tree.Root.Text(16)
+		rootPath := filepath.Join(issuerDir, "root.json")
+		if existingRoot, err := readExistingRoot(rootPath); err == nil {
+			if existingRoot == newRoot {
+				log.Printf("[%s] Root unchanged, skipping snapshot export", iss.ID)
+				continue
+			}
+		}
+
+		// Write output files
 		if err := os.MkdirAll(issuerDir, 0o755); err != nil {
 			log.Printf("[%s] Skipping: mkdir error: %v", iss.ID, err)
 			continue
@@ -106,7 +117,7 @@ func main() {
 
 		// Write root.json
 		info := rootInfo{
-			Root:      "0x" + tree.Root.Text(16),
+			Root:      newRoot,
 			Count:     tree.Count,
 			CRLNumber: parsed.CRLNumber.String(),
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -116,7 +127,6 @@ func main() {
 			log.Printf("[%s] Skipping: marshal root.json: %v", iss.ID, err)
 			continue
 		}
-		rootPath := filepath.Join(issuerDir, "root.json")
 		if err := os.WriteFile(rootPath, rootJSON, 0o644); err != nil {
 			log.Printf("[%s] Skipping: write root.json: %v", iss.ID, err)
 			continue
@@ -141,4 +151,16 @@ func main() {
 	} else {
 		log.Println("Done — no changes")
 	}
+}
+
+func readExistingRoot(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	var info rootInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return "", err
+	}
+	return info.Root, nil
 }
