@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package revocation;
+
+option go_package = "github.com/moven0831/moica-revocation-smt/server/pkg/proto/revocation";
+
+service RevocationProofService {
+  rpc GetProof(GetProofRequest) returns (GetProofResponse);
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+message GetProofRequest {
+  string issuer_id = 1;
+  string serial_number = 2; // hex string
+}
+
+message GetProofResponse {
+  string issuer_id = 1;
+  string serial_number = 2;
+  repeated string entry = 3;
+  repeated string matching_entry = 4;
+  repeated string siblings = 5;
+  string root = 6;
+  bool membership = 7;
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  map<string, IssuerStatus> generations = 1;
+  double uptime_seconds = 2;
+}
+
+message IssuerStatus {
+  bool loaded = 1;
+  int32 count = 2;
+  string root = 3;
+  uint64 crl_number = 4;
+  string loaded_at = 5;
+}
