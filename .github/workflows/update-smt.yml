@@ -2,13 +2,15 @@ name: Update SMT
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # Every 6 hours
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 jobs:
   update:
     name: Fetch CRL & Update SMT
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: server
@@ -18,10 +20,45 @@ jobs:
         with:
           go-version: "1.24"
       - run: go mod download
-      - run: go build -o bin/smtserver ./cmd/smtserver
 
-      # TODO: Add steps to:
-      # 1. Run a one-shot CRL fetch + SMT build
-      # 2. Export snapshot
-      # 3. Upload snapshot to GitHub Release (snapshot-latest tag)
-      # 4. Post root on-chain (requires secrets: RPC_URL, RELAYER_PRIVATE_KEY, CONTRACT_ADDRESS)
+      - name: Build CLI
+        run: go build -o bin/smtbuild ./cmd/smtbuild
+
+      - name: Fetch CRL & Build SMT
+        id: build
+        run: ./bin/smtbuild
+        env:
+          DATA_DIR: ./data
+
+      - name: Commit data
+        if: steps.build.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "update: CRL data $(date -u +%Y%m%d%H%M)"
+          git push
+
+      - name: Upload snapshot
+        if: steps.build.outputs.changed == 'true'
+        run: |
+          gh release delete snapshot-latest --yes || true
+          assets=""
+          for gen in g2 g3; do
+            src="data/${gen}/tree-snapshot.json.gz"
+            if [ -f "$src" ]; then
+              dest="data/${gen}/${gen}-tree-snapshot.json.gz"
+              cp "$src" "$dest"
+              assets="$assets $dest"
+            fi
+          done
+          if [ -n "$assets" ]; then
+            gh release create snapshot-latest \
+              --title "SMT Snapshot" \
+              --notes "Auto-updated Go SMT snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              $assets
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # TODO: Post root on-chain (tracked in GitHub issue)

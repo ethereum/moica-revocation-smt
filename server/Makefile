@@ -1,7 +1,10 @@
-.PHONY: build test test-integration proto clean
+.PHONY: build build-cli test test-integration proto clean
 
 build:
 	go build -o bin/smtserver ./cmd/smtserver
+
+build-cli:
+	go build -o bin/smtbuild ./cmd/smtbuild
 
 test:
 	go test ./... -v
