@@ -50,6 +50,9 @@ func TestGetProofMembership(t *testing.T) {
 	if len(resp.Entry) != 3 {
 		t.Errorf("entry length: got %d, want 3", len(resp.Entry))
 	}
+	if resp.Depth != smt.DefaultDepth {
+		t.Errorf("depth: got %d, want %d", resp.Depth, smt.DefaultDepth)
+	}
 
 	// Verify the proof
 	h := smt.NewPoseidonHasher()

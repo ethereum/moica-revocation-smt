@@ -58,7 +58,7 @@ Snapshots are gzip-compressed JSON containing the full SMT node tree, compatible
 
 ### `GET /proof/{issuerId}/{sn}`
 
-Returns a membership or non-membership proof. Serial number accepts hex with or without `0x` prefix (max 64 hex chars).
+Returns a membership or non-membership proof. Serial number accepts hex with or without `0x` prefix (max 32 hex chars).
 
 ```json
 {
@@ -68,13 +68,14 @@ Returns a membership or non-membership proof. Serial number accepts hex with or 
   "matchingEntry": ["0x...", "0x...", "0x1"],
   "siblings": ["0x...", "0x...", "..."],
   "root": "0x3c2151...",
-  "membership": false
+  "membership": false,
+  "depth": 128
 }
 ```
 
 - `entry` — `[key, value, 1]` for the queried serial
 - `matchingEntry` — present only for non-membership proofs
-- `siblings` — 256 sibling hashes
+- `siblings` — up to 128 sibling hashes (varies by proof)
 - All BigInt values are 0x-prefixed hex strings
 
 ### `GET /status`
@@ -151,11 +152,11 @@ Required secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY`, `CONTRACT_ADDRESS`
 Wire-compatible with `@zk-kit/smt` v1.0.2 (`bigNumbers` mode):
 
 - **Hash:** Poseidon over secq256r1 scalar field via `go-poseidon-p256`
-- **Tree depth:** 256
-- **Path encoding:** LSB-first (`big.Int.Bit(i)` for i in 0..255)
+- **Tree depth:** 128 (sufficient for MOICA 64–128 bit serial numbers; halves proof size vs 256)
+- **Path encoding:** LSB-first (`big.Int.Bit(i)` for i in 0..127)
 - **Leaf node:** `Hash3(key, value, 1)` — the `1` is the entry mark
 - **Branch node:** `Hash2(left, right)`
-- **Proof:** entry `[key, value, 1]` + 256 siblings; non-membership includes optional matching entry
+- **Proof:** entry `[key, value, 1]` + up to 128 siblings; non-membership includes optional matching entry
 
 ## Data Scale
 

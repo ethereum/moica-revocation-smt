@@ -48,6 +48,7 @@ type ProofResponse struct {
 	Siblings      []string `json:"siblings"`
 	Root          string   `json:"root"`
 	Membership    bool     `json:"membership"`
+	Depth         int      `json:"depth"`
 }
 
 // StatusResponse matches the TS API status format.
@@ -67,9 +68,9 @@ func (h *Handler) getProof(w http.ResponseWriter, r *http.Request) {
 	issuerID := chi.URLParam(r, "issuerId")
 	snHex := chi.URLParam(r, "sn")
 
-	// Validate serial number: must be hex, max 64 chars
+	// Validate serial number: must be hex, max 32 chars (128 bits)
 	snHex = strings.TrimPrefix(snHex, "0x")
-	if len(snHex) == 0 || len(snHex) > 64 {
+	if len(snHex) == 0 || len(snHex) > 32 {
 		http.Error(w, `{"error":"invalid serial number"}`, http.StatusBadRequest)
 		return
 	}
@@ -96,6 +97,7 @@ func (h *Handler) getProof(w http.ResponseWriter, r *http.Request) {
 		Siblings:     bigSliceToHex(proof.Siblings),
 		Root:         bigToHex(proof.Root),
 		Membership:   proof.Membership,
+		Depth:        smt.DefaultDepth,
 	}
 	if proof.MatchingEntry != nil {
 		resp.MatchingEntry = bigSliceToHex(proof.MatchingEntry)
