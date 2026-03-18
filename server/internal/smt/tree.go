@@ -22,7 +22,7 @@ type SMT struct {
 	Depth int // Tree depth (number of bits in key path)
 }
 
-// New creates a new empty SMT with the given hasher and default depth (256).
+// New creates a new empty SMT with the given hasher and default depth (128).
 func New(h Hasher) *SMT {
 	return NewWithDepth(h, DefaultDepth)
 }
@@ -81,6 +81,10 @@ func (t *SMT) Add(key, value *big.Int) error {
 
 // addUnlocked is the lock-free core of Add, for use by batch methods that hold the lock.
 func (t *SMT) addUnlocked(key, value *big.Int) error {
+	if key.BitLen() > t.Depth {
+		return fmt.Errorf("key exceeds tree depth: %d bits > %d", key.BitLen(), t.Depth)
+	}
+
 	entry, matchingEntry, siblings := t.retrieveEntry(key)
 
 	if len(entry) >= 2 && entry[1] != nil {
