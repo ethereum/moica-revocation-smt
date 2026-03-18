@@ -35,9 +35,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f data/
-          git commit -m "update: CRL data $(date -u +%Y%m%d%H%M)"
-          git push
+          git add data/*/root.json
+          git diff --cached --quiet || git commit -m "update: CRL data $(date -u +%Y%m%d%H%M)"
+          git diff --cached --quiet || git push
 
       - name: Upload snapshot
         if: steps.build.outputs.changed == 'true'
