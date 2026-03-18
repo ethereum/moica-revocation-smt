@@ -22,6 +22,7 @@ message GetProofResponse {
   repeated string siblings = 5;
   string root = 6;
   bool membership = 7;
+  int32 depth = 8;
 }
 
 message GetStatusRequest {}

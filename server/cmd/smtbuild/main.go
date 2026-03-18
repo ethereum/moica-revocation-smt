@@ -69,7 +69,7 @@ func main() {
 		log.Printf("[%s] %d unique serials (removed %d duplicates)",
 			iss.ID, len(uniqueSerials), len(parsed.RevokedSerials)-len(uniqueSerials))
 
-		// Build SMT with default depth 256 for wire-compatibility
+		// Build SMT with default depth 128 (sufficient for MOICA serial numbers)
 		tree := smt.New(hasher)
 		buildStart := time.Now()
 		err = tree.BatchAddWithProgress(uniqueSerials, entryVal, 10000, func(done, total int) {

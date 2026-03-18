@@ -381,6 +381,21 @@ func TestDeleteAllEntries(t *testing.T) {
 	}
 }
 
+func TestAddKeyExceedingDepth(t *testing.T) {
+	h := NewPoseidonHasher()
+	tree := New(h)
+
+	// A 129-bit key should be rejected at depth 128
+	bigKey := new(big.Int).Lsh(big.NewInt(1), 128) // 2^128
+	err := tree.Add(bigKey, big.NewInt(1))
+	if err == nil {
+		t.Fatal("expected error for key exceeding tree depth")
+	}
+	if tree.Count != 0 {
+		t.Errorf("count should be 0 after rejected add, got %d", tree.Count)
+	}
+}
+
 func TestDeterministicRoot(t *testing.T) {
 	h := NewPoseidonHasher()
 

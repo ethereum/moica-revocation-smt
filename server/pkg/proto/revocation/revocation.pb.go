@@ -82,6 +82,7 @@ type GetProofResponse struct {
 	Siblings      []string               `protobuf:"bytes,5,rep,name=siblings,proto3" json:"siblings,omitempty"`
 	Root          string                 `protobuf:"bytes,6,opt,name=root,proto3" json:"root,omitempty"`
 	Membership    bool                   `protobuf:"varint,7,opt,name=membership,proto3" json:"membership,omitempty"`
+	Depth         int32                  `protobuf:"varint,8,opt,name=depth,proto3" json:"depth,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -163,6 +164,13 @@ func (x *GetProofResponse) GetMembership() bool {
 		return x.Membership
 	}
 	return false
+}
+
+func (x *GetProofResponse) GetDepth() int32 {
+	if x != nil {
+		return x.Depth
+	}
+	return 0
 }
 
 type GetStatusRequest struct {
@@ -337,7 +345,7 @@ const file_pkg_proto_revocation_revocation_proto_rawDesc = "" +
 	"revocation\"S\n" +
 	"\x0fGetProofRequest\x12\x1b\n" +
 	"\tissuer_id\x18\x01 \x01(\tR\bissuerId\x12#\n" +
-	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\"\xe1\x01\n" +
+	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\"\xf7\x01\n" +
 	"\x10GetProofResponse\x12\x1b\n" +
 	"\tissuer_id\x18\x01 \x01(\tR\bissuerId\x12#\n" +
 	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12\x14\n" +
@@ -347,7 +355,8 @@ const file_pkg_proto_revocation_revocation_proto_rawDesc = "" +
 	"\x04root\x18\x06 \x01(\tR\x04root\x12\x1e\n" +
 	"\n" +
 	"membership\x18\a \x01(\bR\n" +
-	"membership\"\x12\n" +
+	"membership\x12\x14\n" +
+	"\x05depth\x18\b \x01(\x05R\x05depth\"\x12\n" +
 	"\x10GetStatusRequest\"\xe6\x01\n" +
 	"\x11GetStatusResponse\x12P\n" +
 	"\vgenerations\x18\x01 \x03(\v2..revocation.GetStatusResponse.GenerationsEntryR\vgenerations\x12%\n" +

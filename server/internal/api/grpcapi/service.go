@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/moven0831/moica-revocation-smt/server/internal/manager"
+	"github.com/moven0831/moica-revocation-smt/server/internal/smt"
 	pb "github.com/moven0831/moica-revocation-smt/server/pkg/proto/revocation"
 )
 
@@ -37,7 +38,7 @@ func bigToHex(n *big.Int) string {
 
 func (s *RevocationServer) GetProof(ctx context.Context, req *pb.GetProofRequest) (*pb.GetProofResponse, error) {
 	snHex := strings.TrimPrefix(req.SerialNumber, "0x")
-	if len(snHex) == 0 || len(snHex) > 64 {
+	if len(snHex) == 0 || len(snHex) > 32 {
 		return nil, status.Error(codes.InvalidArgument, "invalid serial number")
 	}
 
@@ -61,6 +62,7 @@ func (s *RevocationServer) GetProof(ctx context.Context, req *pb.GetProofRequest
 		Siblings:     bigSliceToHex(proof.Siblings),
 		Root:         bigToHex(proof.Root),
 		Membership:   proof.Membership,
+		Depth:        int32(smt.DefaultDepth),
 	}
 	if proof.MatchingEntry != nil {
 		resp.MatchingEntry = bigSliceToHex(proof.MatchingEntry)
