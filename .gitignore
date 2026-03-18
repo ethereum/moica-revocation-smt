@@ -1,5 +1,5 @@
-# Data and snapshots
-data/
+# Snapshot binaries (kept in GitHub Releases only)
+server/data/**/*.json.gz
 
 # Go server
 server/bin/
