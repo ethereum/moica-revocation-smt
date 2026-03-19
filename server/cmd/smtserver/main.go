@@ -36,7 +36,7 @@ func main() {
 	}
 	for _, iss := range issuers {
 		snapPath := filepath.Join(cfg.DataDir, iss.ID, "tree-snapshot.json.gz")
-		tree, err := snapshot.ImportFile(hasher, snapPath)
+		tree, crlNum, err := snapshot.ImportFile(hasher, snapPath)
 		if err != nil {
 			log.Printf("No local snapshot for %s, downloading...", iss.ID)
 			dlPath, dlErr := snapshot.Download(cfg.GitHubRepo, iss.ID, cfg.DataDir)
@@ -44,14 +44,14 @@ func main() {
 				log.Printf("Snapshot download failed for %s: %v", iss.ID, dlErr)
 				continue
 			}
-			tree, err = snapshot.ImportFile(hasher, dlPath)
+			tree, crlNum, err = snapshot.ImportFile(hasher, dlPath)
 			if err != nil {
 				log.Printf("Snapshot import failed for %s: %v", iss.ID, err)
 				continue
 			}
 		}
-		mgr.SetTree(iss.ID, tree, 0) // CRLNumber unknown from snapshot; watcher will update
-		log.Printf("Loaded snapshot for %s: count=%d", iss.ID, tree.Count)
+		mgr.SetTree(iss.ID, tree, crlNum)
+		log.Printf("Loaded snapshot for %s: count=%d crlNumber=%d", iss.ID, tree.Count, crlNum)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
