@@ -64,7 +64,7 @@ func main() {
 	}
 	watcher := crl.NewWatcher(
 		time.Duration(cfg.CRLPollInterval)*time.Second,
-		issuers, mgr, hasher,
+		issuers, mgr, hasher, cfg.DataDir,
 	)
 	go watcher.Start(ctx)
 
@@ -105,6 +105,7 @@ func main() {
 
 	log.Println("Shutting down...")
 	cancel()
+	watcher.Wait()
 	grpcServer.GracefulStop()
 	httpServer.Shutdown(context.Background())
 }

@@ -167,24 +167,11 @@ func main() {
 			}
 		}
 
-		// Write output files
-		if err := os.MkdirAll(issuerDir, 0o755); err != nil {
-			log.Printf("[%s] Skipping: mkdir error: %v", iss.ID, err)
-			continue
-		}
-
-		// Export snapshot
-		f, err := os.Create(snapshotPath)
-		if err != nil {
-			log.Printf("[%s] Skipping: create snapshot file: %v", iss.ID, err)
-			continue
-		}
-		if err := snapshot.Export(tree, parsed.CRLNumber.Uint64(), f); err != nil {
-			f.Close()
+		// Export snapshot (atomic write via temp file + rename)
+		if err := snapshot.ExportFile(tree, parsed.CRLNumber.Uint64(), snapshotPath); err != nil {
 			log.Printf("[%s] Skipping: export snapshot: %v", iss.ID, err)
 			continue
 		}
-		f.Close()
 		log.Printf("[%s] Snapshot exported to %s", iss.ID, snapshotPath)
 
 		// Write root.json
