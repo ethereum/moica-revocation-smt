@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 
 	"github.com/moven0831/moica-revocation-smt/server/internal/smt"
 )
@@ -78,6 +79,36 @@ func Export(tree *smt.SMT, crlNumber uint64, w io.Writer) error {
 
 	enc := json.NewEncoder(gw)
 	return enc.Encode(snapshot)
+}
+
+// ExportFile atomically writes an SMT snapshot to the given path.
+// It writes to a temp file first, then renames for crash safety.
+func ExportFile(tree *smt.SMT, crlNumber uint64, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
+	tmpPath := path + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return fmt.Errorf("create tmp: %w", err)
+	}
+
+	if err := Export(tree, crlNumber, f); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("export: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename: %w", err)
+	}
+	return nil
 }
 
 // ImportFile opens a gzip-compressed JSON snapshot file and reconstructs an SMT.
