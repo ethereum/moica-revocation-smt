@@ -64,7 +64,7 @@ Simple root registry: `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNum
 
 ## SMT Implementation Details
 
-- **Hash:** Poseidon over P-256 (secq256r1) scalar field via `go-poseidon-p256`
+- **Hash:** Poseidon over P-256 base field via `go-poseidon-p256`
 - **Depth:** 128 (sufficient for MOICA 64–128 bit serial numbers; keys exceeding depth are rejected)
 - **Path encoding:** LSB-first — `key.Bit(i)` for i in 0..127
 - **Leaf node:** `Hash3(key, value, 1)` stored as `[key, value, 1]`
