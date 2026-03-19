@@ -4,9 +4,11 @@ import (
 	"context"
 	"log"
 	"math/big"
+	"path/filepath"
 	"time"
 
 	"github.com/moven0831/moica-revocation-smt/server/internal/manager"
+	"github.com/moven0831/moica-revocation-smt/server/internal/snapshot"
 	"github.com/moven0831/moica-revocation-smt/server/internal/smt"
 )
 
@@ -22,15 +24,17 @@ type Watcher struct {
 	issuers  []IssuerConfig
 	mgr      *manager.TreeManager
 	hasher   smt.Hasher
+	dataDir  string
 }
 
 // NewWatcher creates a CRL watcher that polls at the given interval.
-func NewWatcher(interval time.Duration, issuers []IssuerConfig, mgr *manager.TreeManager, hasher smt.Hasher) *Watcher {
+func NewWatcher(interval time.Duration, issuers []IssuerConfig, mgr *manager.TreeManager, hasher smt.Hasher, dataDir string) *Watcher {
 	return &Watcher{
 		interval: interval,
 		issuers:  issuers,
 		mgr:      mgr,
 		hasher:   hasher,
+		dataDir:  dataDir,
 	}
 }
 
@@ -101,6 +105,16 @@ func (w *Watcher) fetchAndRebuild(issuer IssuerConfig) error {
 	w.mgr.SetTree(issuer.ID, tree, crlNum)
 	log.Printf("SMT for %s loaded: root=%s count=%d crl=%d",
 		issuer.ID, tree.Root.Text(16)[:16]+"...", tree.Count, crlNum)
+
+	// Persist snapshot to disk so future restarts load fresh data instantly
+	go func() {
+		snapPath := filepath.Join(w.dataDir, issuer.ID, "tree-snapshot.json.gz")
+		if err := snapshot.ExportFile(tree, crlNum, snapPath); err != nil {
+			log.Printf("Snapshot export failed for %s: %v", issuer.ID, err)
+		} else {
+			log.Printf("Snapshot exported for %s to %s", issuer.ID, snapPath)
+		}
+	}()
 
 	return nil
 }
