@@ -17,8 +17,9 @@ type Snapshot struct {
 	Version int              `json:"version"`
 	Root    string           `json:"root"`
 	Count   int              `json:"count"`
-	Depth   int              `json:"depth,omitempty"`
-	Nodes   []NodeEntry      `json:"nodes"`
+	Depth     int              `json:"depth,omitempty"`
+	CRLNumber uint64           `json:"crlNumber"`
+	Nodes     []NodeEntry      `json:"nodes"`
 }
 
 // NodeEntry is a [nodeHash, [children...]] pair.
@@ -48,15 +49,16 @@ func hexToBig(s string) (*big.Int, error) {
 }
 
 // Export writes the SMT as a gzip-compressed JSON snapshot.
-func Export(tree *smt.SMT, w io.Writer) error {
+func Export(tree *smt.SMT, crlNumber uint64, w io.Writer) error {
 	nodes := tree.Nodes()
 
 	snapshot := Snapshot{
-		Version: 1,
-		Root:    bigToHex(tree.Root),
-		Count:   tree.Count,
-		Depth:   tree.Depth,
-		Nodes:   make([]NodeEntry, 0, len(nodes)),
+		Version:   1,
+		Root:      bigToHex(tree.Root),
+		Count:     tree.Count,
+		Depth:     tree.Depth,
+		CRLNumber: crlNumber,
+		Nodes:     make([]NodeEntry, 0, len(nodes)),
 	}
 
 	for hash, children := range nodes {
@@ -79,31 +81,31 @@ func Export(tree *smt.SMT, w io.Writer) error {
 }
 
 // ImportFile opens a gzip-compressed JSON snapshot file and reconstructs an SMT.
-func ImportFile(h smt.Hasher, path string) (*smt.SMT, error) {
+func ImportFile(h smt.Hasher, path string) (*smt.SMT, uint64, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer f.Close()
 	return Import(h, f)
 }
 
 // Import reads a gzip-compressed JSON snapshot and reconstructs an SMT.
-func Import(h smt.Hasher, r io.Reader) (*smt.SMT, error) {
+func Import(h smt.Hasher, r io.Reader) (*smt.SMT, uint64, error) {
 	gr, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("gzip reader: %w", err)
+		return nil, 0, fmt.Errorf("gzip reader: %w", err)
 	}
 	defer gr.Close()
 
 	var snapshot Snapshot
 	if err := json.NewDecoder(gr).Decode(&snapshot); err != nil {
-		return nil, fmt.Errorf("json decode: %w", err)
+		return nil, 0, fmt.Errorf("json decode: %w", err)
 	}
 
 	root, err := hexToBig(snapshot.Root)
 	if err != nil {
-		return nil, fmt.Errorf("parse root: %w", err)
+		return nil, 0, fmt.Errorf("parse root: %w", err)
 	}
 
 	depth := snapshot.Depth
@@ -115,14 +117,14 @@ func Import(h smt.Hasher, r io.Reader) (*smt.SMT, error) {
 	for _, entry := range snapshot.Nodes {
 		hashBig, err := hexToBig(entry.Hash)
 		if err != nil {
-			return nil, fmt.Errorf("parse node hash: %w", err)
+			return nil, 0, fmt.Errorf("parse node hash: %w", err)
 		}
 
 		children := make(smt.ChildNodes, len(entry.Children))
 		for i, c := range entry.Children {
 			children[i], err = hexToBig(c)
 			if err != nil {
-				return nil, fmt.Errorf("parse child: %w", err)
+				return nil, 0, fmt.Errorf("parse child: %w", err)
 			}
 		}
 
@@ -133,5 +135,5 @@ func Import(h smt.Hasher, r io.Reader) (*smt.SMT, error) {
 	tree := smt.NewWithDepth(h, depth)
 	tree.SetNodes(nodes, root, snapshot.Count)
 
-	return tree, nil
+	return tree, snapshot.CRLNumber, nil
 }

@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"bytes"
+	"compress/gzip"
 	"math/big"
 	"testing"
 
@@ -28,12 +29,12 @@ func TestSnapshotRoundTrip(t *testing.T) {
 
 	// Export
 	var buf bytes.Buffer
-	if err := Export(tree, &buf); err != nil {
+	if err := Export(tree, 0, &buf); err != nil {
 		t.Fatal("export:", err)
 	}
 
 	// Import
-	restored, err := Import(h, &buf)
+	restored, _, err := Import(h, &buf)
 	if err != nil {
 		t.Fatal("import:", err)
 	}
@@ -72,11 +73,11 @@ func TestSnapshotEmpty(t *testing.T) {
 	tree := smt.New(h)
 
 	var buf bytes.Buffer
-	if err := Export(tree, &buf); err != nil {
+	if err := Export(tree, 0, &buf); err != nil {
 		t.Fatal("export empty:", err)
 	}
 
-	restored, err := Import(h, &buf)
+	restored, _, err := Import(h, &buf)
 	if err != nil {
 		t.Fatal("import empty:", err)
 	}
@@ -86,5 +87,50 @@ func TestSnapshotEmpty(t *testing.T) {
 	}
 	if restored.Count != 0 {
 		t.Error("empty tree count should be zero")
+	}
+}
+
+func TestSnapshotCRLNumber(t *testing.T) {
+	h := smt.NewPoseidonHasher()
+	tree := smt.New(h)
+
+	key, _ := new(big.Int).SetString("ABCDEF", 16)
+	tree.Add(key, big.NewInt(1))
+
+	var crlNum uint64 = 42
+
+	var buf bytes.Buffer
+	if err := Export(tree, crlNum, &buf); err != nil {
+		t.Fatal("export:", err)
+	}
+
+	restored, gotCRL, err := Import(h, &buf)
+	if err != nil {
+		t.Fatal("import:", err)
+	}
+
+	if gotCRL != crlNum {
+		t.Errorf("crlNumber: got %d, want %d", gotCRL, crlNum)
+	}
+	if restored.Root.Cmp(tree.Root) != 0 {
+		t.Errorf("root mismatch")
+	}
+}
+
+func TestSnapshotBackwardCompat(t *testing.T) {
+	jsonData := `{"version":1,"root":"0x0","count":0,"nodes":[]}`
+
+	var gzBuf bytes.Buffer
+	gw := gzip.NewWriter(&gzBuf)
+	gw.Write([]byte(jsonData))
+	gw.Close()
+
+	h := smt.NewPoseidonHasher()
+	_, gotCRL, err := Import(h, &gzBuf)
+	if err != nil {
+		t.Fatal("import old format:", err)
+	}
+	if gotCRL != 0 {
+		t.Errorf("old snapshot crlNumber: got %d, want 0", gotCRL)
 	}
 }
