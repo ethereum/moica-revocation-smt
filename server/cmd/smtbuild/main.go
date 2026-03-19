@@ -69,20 +69,92 @@ func main() {
 		log.Printf("[%s] %d unique serials (removed %d duplicates)",
 			iss.ID, len(uniqueSerials), len(parsed.RevokedSerials)-len(uniqueSerials))
 
-		// Build SMT with default depth 128 (sufficient for MOICA serial numbers)
-		tree := smt.New(hasher)
+		// Try loading existing snapshot for incremental update
+		var tree *smt.SMT
 		buildStart := time.Now()
-		err = tree.BatchAddWithProgress(uniqueSerials, entryVal, 10000, func(done, total int) {
-			log.Printf("[%s] Added %d / %d entries", iss.ID, done, total)
-		})
-		if err != nil {
-			log.Printf("[%s] Skipping: batch add error: %v", iss.ID, err)
-			continue
-		}
-		log.Printf("[%s] SMT built: count=%d, root=0x%s, duration=%v",
-			iss.ID, tree.Count, tree.Root.Text(16), time.Since(buildStart))
-
 		issuerDir := filepath.Join(cfg.DataDir, iss.ID)
+		snapshotPath := filepath.Join(issuerDir, "tree-snapshot.json.gz")
+
+		tree, err = snapshot.ImportFile(hasher, snapshotPath)
+		if err != nil {
+			log.Printf("[%s] No local snapshot, trying GitHub Release", iss.ID)
+			if dlPath, dlErr := snapshot.Download(cfg.GitHubRepo, iss.ID, cfg.DataDir); dlErr == nil {
+				tree, err = snapshot.ImportFile(hasher, dlPath)
+				if err != nil {
+					log.Printf("[%s] Failed to import downloaded snapshot: %v", iss.ID, err)
+				}
+			} else {
+				log.Printf("[%s] No snapshot available: %v", iss.ID, dlErr)
+			}
+		}
+
+		if tree != nil && tree.Count > 0 {
+			// Incremental update: compute delta
+			existingKeys := tree.Keys()
+			existingSet := make(map[string]struct{}, len(existingKeys))
+			for _, k := range existingKeys {
+				existingSet[k.Text(16)] = struct{}{}
+			}
+
+			newSet := make(map[string]struct{}, len(uniqueSerials))
+			for _, s := range uniqueSerials {
+				newSet[s.Text(16)] = struct{}{}
+			}
+
+			// Compute toAdd: in new but not existing
+			var toAdd []*big.Int
+			for _, s := range uniqueSerials {
+				if _, ok := existingSet[s.Text(16)]; !ok {
+					toAdd = append(toAdd, s)
+				}
+			}
+
+			// Compute toDelete: in existing but not new
+			var toDelete []*big.Int
+			for _, k := range existingKeys {
+				if _, ok := newSet[k.Text(16)]; !ok {
+					toDelete = append(toDelete, k)
+				}
+			}
+
+			if len(toAdd) == 0 && len(toDelete) == 0 {
+				log.Printf("[%s] No changes detected, skipping", iss.ID)
+				continue
+			}
+
+			log.Printf("[%s] Incremental: +%d adds, -%d deletes (from %d existing)",
+				iss.ID, len(toAdd), len(toDelete), len(existingKeys))
+
+			if len(toDelete) > 0 {
+				if err := tree.BatchDelete(toDelete); err != nil {
+					log.Printf("[%s] Skipping: batch delete error: %v", iss.ID, err)
+					continue
+				}
+			}
+
+			if len(toAdd) > 0 {
+				err = tree.BatchAddWithProgress(toAdd, entryVal, 10000, func(done, total int) {
+					log.Printf("[%s] Added %d / %d entries", iss.ID, done, total)
+				})
+				if err != nil {
+					log.Printf("[%s] Skipping: batch add error: %v", iss.ID, err)
+					continue
+				}
+			}
+		} else {
+			// Full rebuild
+			tree = smt.New(hasher)
+			log.Printf("[%s] Full rebuild: %d entries", iss.ID, len(uniqueSerials))
+			err = tree.BatchAddWithProgress(uniqueSerials, entryVal, 10000, func(done, total int) {
+				log.Printf("[%s] Added %d / %d entries", iss.ID, done, total)
+			})
+			if err != nil {
+				log.Printf("[%s] Skipping: batch add error: %v", iss.ID, err)
+				continue
+			}
+		}
+		log.Printf("[%s] SMT ready: count=%d, root=0x%s, duration=%v",
+			iss.ID, tree.Count, tree.Root.Text(16), time.Since(buildStart))
 
 		// Check if root changed
 		newRoot := "0x" + tree.Root.Text(16)
@@ -101,7 +173,6 @@ func main() {
 		}
 
 		// Export snapshot
-		snapshotPath := filepath.Join(issuerDir, "tree-snapshot.json.gz")
 		f, err := os.Create(snapshotPath)
 		if err != nil {
 			log.Printf("[%s] Skipping: create snapshot file: %v", iss.ID, err)
