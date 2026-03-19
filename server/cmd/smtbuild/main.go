@@ -75,11 +75,11 @@ func main() {
 		issuerDir := filepath.Join(cfg.DataDir, iss.ID)
 		snapshotPath := filepath.Join(issuerDir, "tree-snapshot.json.gz")
 
-		tree, err = snapshot.ImportFile(hasher, snapshotPath)
+		tree, _, err = snapshot.ImportFile(hasher, snapshotPath)
 		if err != nil {
 			log.Printf("[%s] No local snapshot, trying GitHub Release", iss.ID)
 			if dlPath, dlErr := snapshot.Download(cfg.GitHubRepo, iss.ID, cfg.DataDir); dlErr == nil {
-				tree, err = snapshot.ImportFile(hasher, dlPath)
+				tree, _, err = snapshot.ImportFile(hasher, dlPath)
 				if err != nil {
 					log.Printf("[%s] Failed to import downloaded snapshot: %v", iss.ID, err)
 				}
@@ -178,7 +178,7 @@ func main() {
 			log.Printf("[%s] Skipping: create snapshot file: %v", iss.ID, err)
 			continue
 		}
-		if err := snapshot.Export(tree, f); err != nil {
+		if err := snapshot.Export(tree, parsed.CRLNumber.Uint64(), f); err != nil {
 			f.Close()
 			log.Printf("[%s] Skipping: export snapshot: %v", iss.ID, err)
 			continue
