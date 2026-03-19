@@ -60,7 +60,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Import snapshot into SMT.
-	tree, err := snapshot.ImportFile(h, snapshotPath)
+	tree, crlNum, err := snapshot.ImportFile(h, snapshotPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to import snapshot: %v\n", err)
 		os.Exit(1)
@@ -76,7 +76,7 @@ func TestMain(m *testing.M) {
 
 	// Set up TreeManager with the imported tree.
 	mgr := manager.New(h)
-	mgr.SetTree(issuerID, tree, 0)
+	mgr.SetTree(issuerID, tree, crlNum)
 	mgr.SetTree("g3", smt.New(h), 0)
 
 	// Set up REST router.
