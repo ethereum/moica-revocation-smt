@@ -10,6 +10,7 @@ test:
 	go test ./... -v
 
 test-integration:
+	go test -tags integration ./internal/api/ -run TestIntegration -v -timeout 10m
 	go test -tags integration ./internal/crl/... -v -timeout 30m
 
 proto:
