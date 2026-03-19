@@ -58,6 +58,19 @@ The latest Merkle roots for each issuer are displayed in the [snapshot-latest re
 
 ## API
 
+### Usage Examples
+
+```bash
+# Check server status
+curl localhost:3000/status
+
+# Query a revoked certificate (membership proof)
+curl localhost:3000/proof/g2/100048210dd2df2e128096a9282b5ec5
+
+# Query a non-revoked certificate (non-membership proof)
+curl localhost:3000/proof/g2/00000000000000000000000000000001
+```
+
 ### `GET /proof/{issuerId}/{sn}`
 
 Returns a membership or non-membership proof. Serial number accepts hex with or without `0x` prefix (max 32 hex chars).
