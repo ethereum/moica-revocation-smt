@@ -1,6 +1,6 @@
 # Moica Revocation SMT
 
-Pipeline that fetches Taiwan MOICA Certificate Revocation Lists (CRLs), builds a Sparse Merkle Tree (SMT) from revoked serial numbers, serves ZK-friendly membership/non-membership proofs via REST and gRPC, and posts roots on-chain. The Go counterpart to [moica-revocation-smt-ts](https://github.com/moven0831/moica-revocation-smt).
+Pipeline that fetches Taiwan MOICA Certificate Revocation Lists (CRLs), builds a Sparse Merkle Tree (SMT) from revoked serial numbers, serves ZK-friendly membership/non-membership proofs via REST and gRPC, and posts roots on-chain.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ make run      # starts REST + gRPC servers
 # or run tests
 make test
 
-# integration tests (fetches live CRL data, builds full SMT, ~30min)
+# integration tests (API E2E ~10s + live CRL fetch ~30min)
 make test-integration
 ```
 
@@ -136,7 +136,8 @@ npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"r
 ## CI/CD
 
 **`ci.yml`** — runs on push/PR to main:
-- Go server: `go test ./...` + build binary (integration tests excluded via `//go:build integration` tag)
+- Go server: `go test ./...` + build binary
+- E2E integration: downloads real G2 snapshot (~412k entries), verifies proofs via REST + gRPC
 - Contracts: `npx hardhat test` (Node 22)
 
 **`update-smt.yml`** — runs twice daily at 12:00/00:00 UTC+8 (04:00/16:00 UTC):

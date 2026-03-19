@@ -14,7 +14,7 @@ Go+Solidity pipeline that fetches Taiwan MOICA Certificate Revocation Lists (CRL
 make build              # Compile bin/smtserver
 make build-cli          # Compile bin/smtbuild
 make test               # Unit tests (excludes integration)
-make test-integration   # Live CRL fetch tests (~30 min, requires network)
+make test-integration   # API E2E tests (~10s) + live CRL fetch tests (~30 min)
 make proto              # Regenerate gRPC stubs from .proto
 make run                # Build and run smtserver
 
@@ -40,7 +40,7 @@ Two entry points in `server/cmd/`:
 
 | Package | Purpose |
 |---------|---------|
-| `smt/` | Core SMT: Poseidon hash, 256-depth tree, proof generation/verification |
+| `smt/` | Core SMT: Poseidon hash, 128-depth tree, proof generation/verification |
 | `crl/` | CRL HTTP fetcher, DER parser, periodic watcher goroutine |
 | `manager/` | Thread-safe per-issuer (`g2`, `g3`) tree management via `TreeManager` |
 | `api/rest/` | Chi router: `GET /proof/{issuerId}/{sn}`, `GET /status` |
@@ -74,7 +74,7 @@ Simple root registry: `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNum
 
 ## CI/CD
 
-- **ci.yml** — On push/PR: Go unit tests + build, Hardhat contract tests
+- **ci.yml** — On push/PR: Go unit tests + build, Hardhat contract tests, E2E integration tests (downloads real G2 snapshot)
 - **update-smt.yml** — Cron (04:00 & 16:00 UTC): smtbuild → commit snapshots → upload to `snapshot-latest` release
 
 ## Data Scale
@@ -84,4 +84,6 @@ Simple root registry: `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNum
 | G2  | ~412,000      | ~20MB    |
 | G3  | ~103,000      | ~5MB     |
 
-Integration tests (`//go:build integration`) fetch live data and take ~30 minutes.
+Integration tests use `//go:build integration` tag (excluded from `make test`):
+- **API E2E** (`api/e2e_integration_test.go`): Downloads real G2 snapshot, verifies proofs via REST + gRPC (~10s, runs in CI)
+- **CRL** (`crl/integration_test.go`): Fetches live CRL data and rebuilds trees (~30 min, not in CI)
