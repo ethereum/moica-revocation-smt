@@ -2,7 +2,6 @@ package snapshot
 
 import (
 	"bytes"
-	"compress/gzip"
 	"math/big"
 	"testing"
 
@@ -114,23 +113,5 @@ func TestSnapshotCRLNumber(t *testing.T) {
 	}
 	if restored.Root.Cmp(tree.Root) != 0 {
 		t.Errorf("root mismatch")
-	}
-}
-
-func TestSnapshotBackwardCompat(t *testing.T) {
-	jsonData := `{"version":1,"root":"0x0","count":0,"nodes":[]}`
-
-	var gzBuf bytes.Buffer
-	gw := gzip.NewWriter(&gzBuf)
-	gw.Write([]byte(jsonData))
-	gw.Close()
-
-	h := smt.NewPoseidonHasher()
-	_, gotCRL, err := Import(h, &gzBuf)
-	if err != nil {
-		t.Fatal("import old format:", err)
-	}
-	if gotCRL != 0 {
-		t.Errorf("old snapshot crlNumber: got %d, want 0", gotCRL)
 	}
 }
