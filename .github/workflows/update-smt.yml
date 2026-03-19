@@ -47,18 +47,31 @@ jobs:
         run: |
           gh release delete snapshot-latest --yes || true
           assets=""
+          notes="Auto-updated SMT snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)"$'\n\n'
           for gen in g2 g3; do
             src="data/${gen}/tree-snapshot.json.gz"
+            root_file="data/${gen}/root.json"
             if [ -f "$src" ]; then
               dest="data/${gen}/${gen}-tree-snapshot.json.gz"
               cp "$src" "$dest"
               assets="$assets $dest"
             fi
+            if [ -f "$root_file" ]; then
+              root=$(jq -r '.root' "$root_file")
+              count=$(jq -r '.count' "$root_file")
+              crl=$(jq -r '.crlNumber' "$root_file")
+              ts=$(jq -r '.timestamp' "$root_file")
+              notes+="### ${gen^^}"$'\n'
+              notes+="- **Root:** \`${root}\`"$'\n'
+              notes+="- **Count:** ${count}"$'\n'
+              notes+="- **CRL Number:** ${crl}"$'\n'
+              notes+="- **Updated:** ${ts}"$'\n\n'
+            fi
           done
           if [ -n "$assets" ]; then
             gh release create snapshot-latest \
               --title "SMT Snapshot" \
-              --notes "Auto-updated Go SMT snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --notes "$notes" \
               $assets
           fi
         env:

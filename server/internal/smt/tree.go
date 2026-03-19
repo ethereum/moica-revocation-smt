@@ -130,7 +130,11 @@ func (t *SMT) addUnlocked(key, value *big.Int) error {
 func (t *SMT) Delete(key *big.Int) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	return t.deleteUnlocked(key)
+}
 
+// deleteUnlocked is the lock-free core of Delete, for use by batch methods that hold the lock.
+func (t *SMT) deleteUnlocked(key *big.Int) error {
 	entry, _, siblings := t.retrieveEntry(key)
 
 	if len(entry) < 2 || entry[1] == nil {
@@ -169,6 +173,19 @@ func (t *SMT) Nodes() map[string]ChildNodes {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.nodes
+}
+
+// Keys returns copies of all leaf keys (serial numbers) in the tree.
+func (t *SMT) Keys() []*big.Int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	keys := make([]*big.Int, 0, t.Count)
+	for _, cn := range t.nodes {
+		if cn.IsLeaf() {
+			keys = append(keys, new(big.Int).Set(cn[0]))
+		}
+	}
+	return keys
 }
 
 // SetNodes restores internal state (for snapshot import).

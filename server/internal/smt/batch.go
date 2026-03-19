@@ -20,6 +20,19 @@ func (t *SMT) BatchAdd(keys []*big.Int, value *big.Int) error {
 	return nil
 }
 
+// BatchDelete removes multiple keys from the tree.
+// Holds the lock once for the entire batch to avoid per-entry mutex overhead.
+func (t *SMT) BatchDelete(keys []*big.Int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, key := range keys {
+		if err := t.deleteUnlocked(key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // BatchAddWithProgress inserts entries and calls the progress callback periodically.
 // Holds the lock once for the entire batch to avoid per-entry mutex overhead.
 func (t *SMT) BatchAddWithProgress(keys []*big.Int, value *big.Int, batchSize int, onProgress func(done, total int)) error {
