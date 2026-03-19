@@ -14,7 +14,7 @@ type Hasher interface {
 	Hash3(a, b, c *big.Int) *big.Int
 }
 
-// PoseidonHasher implements Hasher using Poseidon over the P-256 scalar field.
+// PoseidonHasher implements Hasher using Poseidon over the P-256 base field.
 type PoseidonHasher struct{}
 
 func NewPoseidonHasher() *PoseidonHasher {

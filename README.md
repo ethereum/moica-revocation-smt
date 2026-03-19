@@ -167,7 +167,7 @@ Required secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY`, `CONTRACT_ADDRESS`
 
 Wire-compatible with `@zk-kit/smt` v1.0.2 (`bigNumbers` mode):
 
-- **Hash:** Poseidon over secq256r1 scalar field via `go-poseidon-p256`
+- **Hash:** Poseidon over P-256 base field via `go-poseidon-p256`
 - **Tree depth:** 128 (sufficient for MOICA 64–128 bit serial numbers; halves proof size vs 256)
 - **Path encoding:** LSB-first (`big.Int.Bit(i)` for i in 0..127)
 - **Leaf node:** `Hash3(key, value, 1)` — the `1` is the entry mark

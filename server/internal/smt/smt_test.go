@@ -26,17 +26,17 @@ var (
 	serial4 = hexToBig("400048210DD2DF2E128096A9282B5EC5") // non-member
 
 	// Expected Poseidon hash values
-	expectedHash2_1_2     = hexToBig("0x15d5f9b94530aeb9c69c47e44e2fca2e73ea185df9de41e24c9b397124b283dc")
-	expectedHash3_1_1_1   = hexToBig("0x387101fb2a91af1c1c3683c122e6ab8567332c135c897dbcf7ca755889b16c4b")
-	expectedHash2_0_0     = hexToBig("0x63e0e78ba24a2b23621bae4e4ac184b0eed6eb5240a51120b44793982be151a7")
+	expectedHash2_1_2     = hexToBig("0xc60591ce6a4105649f28c74ec6093cf25e8a6401b89636d5c2432d72f606af47")
+	expectedHash3_1_1_1   = hexToBig("0x4c6b44682d8f810ba3249d716a6838cee5b5b9c731f5a0b8a2874b79eec5da81")
+	expectedHash2_0_0     = hexToBig("0x6521ab6eb5c22f77eff9e11bd3deae6860e06ccc7da0cc65c260d403bb08e7be")
 
 	// Expected roots after each insertion
-	rootAfterAdd1 = hexToBig("0xa8745054a4d00e0d8760deb3f969867396672ff350bbe6e9887169f2b9e87ea1")
-	rootAfterAdd2 = hexToBig("0x8674dee5a21dcde3c9f857ac77b6afb1110b2ce392dc012337254c6d647ff67e")
-	rootAfterAdd3 = hexToBig("0x2a28d47e11d101db7c58da1fa2bb6bcf350490aed93c94b181f49957d078fd55")
+	rootAfterAdd1 = hexToBig("0xf1cc977ea283abc42c5afdf20828888ddc3c1884f674ff4249c2c75851436726")
+	rootAfterAdd2 = hexToBig("0x4f4e4d9f0d5d61912ae626b1c3014c6abc30d56f6a30a485dbae4c5826f265ae")
+	rootAfterAdd3 = hexToBig("0xbb2714b3d022f790b9f77d9d615753877dad3d949fdcfa3a59c58f0f652a307a")
 
 	// Root after deleting serial2
-	rootAfterDelete2 = hexToBig("0xc49d1e0a6ac1fcd07db35ab6ca24143b29dd4be85e94d1f52968551cf9adba6a")
+	rootAfterDelete2 = hexToBig("0xc79e55ef0fde750822082cc3f6f8a9497ff92488f0cb7e31a2ba572f307f2641")
 )
 
 func TestPoseidonHashCompatibility(t *testing.T) {
@@ -239,8 +239,8 @@ func TestMembershipProof(t *testing.T) {
 			t.Errorf("sibling[%d] should be zero", i)
 		}
 	}
-	expectedSibling124 := hexToBig("0xb38420e2097e07feba845b3c061e15ad70d0e3e66ef91a8432aaeec4e1a0990d")
-	expectedSibling125 := hexToBig("0xb914872470b21867929bc68b7a27e890ba5a245cbea9e4eddf1e6a6a1bc58f7a")
+	expectedSibling124 := hexToBig("0xa3634ceabd4d53fdde8e0c3fc883b4c30b442c17733a97248fa79fcd21dcecf9")
+	expectedSibling125 := hexToBig("0x68708615fd29eff0225305a665dd703f7481e8e964f368dbc1a28e0ee300b1f3")
 	if proof.Siblings[124].Cmp(expectedSibling124) != 0 {
 		t.Errorf("sibling[124]: got %s, want %s", proof.Siblings[124].Text(16), expectedSibling124.Text(16))
 	}
@@ -291,7 +291,7 @@ func TestNonMembershipProof(t *testing.T) {
 	if len(proof.Siblings) != 125 {
 		t.Fatalf("siblings length: got %d, want 125", len(proof.Siblings))
 	}
-	expectedSibling124 := hexToBig("0x92be5fe55d1fc933569429dd6050f6eca78efd4d0a777bfae335138bdf65a3af")
+	expectedSibling124 := hexToBig("0x7aea0ad2fb6769c36e5a2e9d71f8656cacd7c2ebc739f7e3eb48e6e21c9d77f2")
 	if proof.Siblings[124].Cmp(expectedSibling124) != 0 {
 		t.Errorf("sibling[124]: got %s, want %s", proof.Siblings[124].Text(16), expectedSibling124.Text(16))
 	}

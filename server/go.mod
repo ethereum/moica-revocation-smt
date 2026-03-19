@@ -6,7 +6,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/ethereum/go-ethereum v1.17.1
 	github.com/go-chi/chi/v5 v5.2.5
-	github.com/zkmopro/go-poseidon-p256 v0.1.1
+	github.com/zkmopro/go-poseidon-p256 v0.2.0
 	google.golang.org/grpc v1.79.2
 	google.golang.org/protobuf v1.36.11
 )
