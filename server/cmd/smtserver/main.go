@@ -105,6 +105,7 @@ func main() {
 
 	log.Println("Shutting down...")
 	cancel()
+	watcher.Wait()
 	grpcServer.GracefulStop()
 	httpServer.Shutdown(context.Background())
 }

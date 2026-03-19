@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/big"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/moven0831/moica-revocation-smt/server/internal/manager"
@@ -25,6 +26,7 @@ type Watcher struct {
 	mgr      *manager.TreeManager
 	hasher   smt.Hasher
 	dataDir  string
+	wg       sync.WaitGroup
 }
 
 // NewWatcher creates a CRL watcher that polls at the given interval.
@@ -37,6 +39,9 @@ func NewWatcher(interval time.Duration, issuers []IssuerConfig, mgr *manager.Tre
 		dataDir:  dataDir,
 	}
 }
+
+// Wait blocks until all background export goroutines have finished.
+func (w *Watcher) Wait() { w.wg.Wait() }
 
 // Start begins the periodic CRL polling loop. Blocks until ctx is cancelled.
 func (w *Watcher) Start(ctx context.Context) {
@@ -107,7 +112,9 @@ func (w *Watcher) fetchAndRebuild(issuer IssuerConfig) error {
 		issuer.ID, tree.Root.Text(16)[:16]+"...", tree.Count, crlNum)
 
 	// Persist snapshot to disk so future restarts load fresh data instantly
+	w.wg.Add(1)
 	go func() {
+		defer w.wg.Done()
 		snapPath := filepath.Join(w.dataDir, issuer.ID, "tree-snapshot.json.gz")
 		if err := snapshot.ExportFile(tree, crlNum, snapPath); err != nil {
 			log.Printf("Snapshot export failed for %s: %v", issuer.ID, err)

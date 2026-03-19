@@ -3,6 +3,8 @@ package snapshot
 import (
 	"bytes"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/moven0831/moica-revocation-smt/server/internal/smt"
@@ -64,6 +66,58 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	}
 	if !smt.VerifyProof(h, nonProof, smt.DefaultDepth) {
 		t.Fatal("non-membership proof verification failed on restored tree")
+	}
+}
+
+func TestExportFileRoundTrip(t *testing.T) {
+	h := smt.NewPoseidonHasher()
+	tree := smt.New(h)
+
+	serials := []string{
+		"100048210DD2DF2E128096A9282B5EC5",
+		"200048210DD2DF2E128096A9282B5EC5",
+		"300048210DD2DF2E128096A9282B5EC5",
+	}
+	for _, s := range serials {
+		key, _ := new(big.Int).SetString(s, 16)
+		tree.Add(key, big.NewInt(1))
+	}
+
+	originalRoot := new(big.Int).Set(tree.Root)
+	originalCount := tree.Count
+	var crlNum uint64 = 99
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sub", "tree-snapshot.json.gz")
+
+	if err := ExportFile(tree, crlNum, path); err != nil {
+		t.Fatal("ExportFile:", err)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("snapshot file not found:", err)
+	}
+
+	restored, gotCRL, err := ImportFile(h, path)
+	if err != nil {
+		t.Fatal("ImportFile:", err)
+	}
+	if restored.Root.Cmp(originalRoot) != 0 {
+		t.Errorf("root mismatch: got %s, want %s", restored.Root.Text(16), originalRoot.Text(16))
+	}
+	if restored.Count != originalCount {
+		t.Errorf("count mismatch: got %d, want %d", restored.Count, originalCount)
+	}
+	if gotCRL != crlNum {
+		t.Errorf("crlNumber: got %d, want %d", gotCRL, crlNum)
+	}
+
+	// Verify no .tmp files remain
+	entries, _ := os.ReadDir(filepath.Dir(path))
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) == ".tmp" {
+			t.Errorf("stale temp file found: %s", e.Name())
+		}
 	}
 }
 

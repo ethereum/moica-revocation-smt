@@ -88,11 +88,11 @@ func ExportFile(tree *smt.SMT, crlNumber uint64, path string) error {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	tmpPath := path + ".tmp"
-	f, err := os.Create(tmpPath)
+	f, err := os.CreateTemp(filepath.Dir(path), "snapshot-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create tmp: %w", err)
 	}
+	tmpPath := f.Name()
 
 	if err := Export(tree, crlNumber, f); err != nil {
 		f.Close()
