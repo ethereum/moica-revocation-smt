@@ -2,6 +2,7 @@ package smt
 
 import (
 	"math/big"
+	"sort"
 	"testing"
 )
 
@@ -393,6 +394,116 @@ func TestAddKeyExceedingDepth(t *testing.T) {
 	}
 	if tree.Count != 0 {
 		t.Errorf("count should be 0 after rejected add, got %d", tree.Count)
+	}
+}
+
+func TestKeys(t *testing.T) {
+	h := NewPoseidonHasher()
+	tree := New(h)
+
+	tree.Add(serial1, big.NewInt(1))
+	tree.Add(serial2, big.NewInt(1))
+	tree.Add(serial3, big.NewInt(1))
+
+	keys := tree.Keys()
+	if len(keys) != 3 {
+		t.Fatalf("got %d keys, want 3", len(keys))
+	}
+
+	// Sort keys for deterministic comparison
+	sort.Slice(keys, func(i, j int) bool { return keys[i].Cmp(keys[j]) < 0 })
+	expected := []*big.Int{serial1, serial2, serial3}
+	sort.Slice(expected, func(i, j int) bool { return expected[i].Cmp(expected[j]) < 0 })
+
+	for i, k := range keys {
+		if k.Cmp(expected[i]) != 0 {
+			t.Errorf("key[%d]: got %s, want %s", i, k.Text(16), expected[i].Text(16))
+		}
+	}
+}
+
+func TestKeysEmptyTree(t *testing.T) {
+	h := NewPoseidonHasher()
+	tree := New(h)
+
+	keys := tree.Keys()
+	if len(keys) != 0 {
+		t.Fatalf("got %d keys, want 0", len(keys))
+	}
+}
+
+func TestBatchDelete(t *testing.T) {
+	h := NewPoseidonHasher()
+	tree := New(h)
+
+	tree.Add(serial1, big.NewInt(1))
+	tree.Add(serial2, big.NewInt(1))
+	tree.Add(serial3, big.NewInt(1))
+
+	// Delete serial1 and serial2
+	if err := tree.BatchDelete([]*big.Int{serial1, serial2}); err != nil {
+		t.Fatal(err)
+	}
+
+	if tree.Count != 1 {
+		t.Errorf("count: got %d, want 1", tree.Count)
+	}
+
+	// serial3 should still exist
+	if val := tree.Get(serial3); val == nil || val.Cmp(big.NewInt(1)) != 0 {
+		t.Errorf("serial3 should still exist, got %v", val)
+	}
+
+	// serial1 and serial2 should be gone
+	if val := tree.Get(serial1); val != nil {
+		t.Errorf("serial1 should be deleted, got %v", val)
+	}
+	if val := tree.Get(serial2); val != nil {
+		t.Errorf("serial2 should be deleted, got %v", val)
+	}
+}
+
+func TestIncrementalEquivalence(t *testing.T) {
+	h := NewPoseidonHasher()
+
+	// Build tree A with {1,2,3}
+	treeA := New(h)
+	treeA.Add(serial1, big.NewInt(1))
+	treeA.Add(serial2, big.NewInt(1))
+	treeA.Add(serial3, big.NewInt(1))
+
+	// Simulate snapshot round-trip via Nodes/SetNodes
+	nodesCopy := make(map[string]ChildNodes, len(treeA.Nodes()))
+	for k, v := range treeA.Nodes() {
+		cp := make(ChildNodes, len(v))
+		for i, c := range v {
+			cp[i] = new(big.Int).Set(c)
+		}
+		nodesCopy[k] = cp
+	}
+	treeB := New(h)
+	treeB.SetNodes(nodesCopy, new(big.Int).Set(treeA.Root), treeA.Count)
+
+	// Apply delta: delete serial1, add serial4
+	if err := treeB.Delete(serial1); err != nil {
+		t.Fatalf("delete serial1: %v", err)
+	}
+	if err := treeB.Add(serial4, big.NewInt(1)); err != nil {
+		t.Fatalf("add serial4: %v", err)
+	}
+
+	// Build fresh tree with {2,3,4}
+	treeFresh := New(h)
+	treeFresh.Add(serial2, big.NewInt(1))
+	treeFresh.Add(serial3, big.NewInt(1))
+	treeFresh.Add(serial4, big.NewInt(1))
+
+	if treeB.Root.Cmp(treeFresh.Root) != 0 {
+		t.Errorf("incremental root %s != fresh root %s",
+			treeB.Root.Text(16), treeFresh.Root.Text(16))
+	}
+	if treeB.Count != treeFresh.Count {
+		t.Errorf("incremental count %d != fresh count %d", treeB.Count, treeFresh.Count)
 	}
 }
 
