@@ -38,6 +38,7 @@ jobs:
           git add data/*/root.json
           if ! git diff --cached --quiet; then
             git commit -m "update: CRL data $(date -u +%Y%m%d%H%M)"
+            git pull --rebase
             git push
           fi
 
