@@ -54,6 +54,8 @@ curl -L -o data/g3/tree-snapshot.json.gz \
 
 Snapshots are gzip-compressed JSON containing the full SMT node tree, compatible with `@zk-kit/smt` v1.0.2.
 
+The latest Merkle roots for each issuer are displayed in the [snapshot-latest release notes](https://github.com/moven0831/moica-revocation-smt/releases/tag/snapshot-latest). Since the SMT is deterministic, anyone can independently verify a root by rebuilding from the same CRL data.
+
 ## API
 
 ### `GET /proof/{issuerId}/{sn}`
