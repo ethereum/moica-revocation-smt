@@ -9,6 +9,7 @@ jobs:
   update:
     name: Fetch CRL & Update SMT
     runs-on: ubuntu-latest
+    environment: SMTRootStorageModule
     permissions:
       contents: write
     defaults:
@@ -77,4 +78,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # TODO: Post root on-chain (tracked in GitHub issue)
+      - name: Post root on-chain
+        if: steps.build.outputs.changed == 'true'
+        run: ./bin/smtbuild --post-root
+        env:
+          DATA_DIR: ./data
+          RPC_URL: ${{ secrets.RPC_URL }}
+          RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
+          CONTRACT_ADDRESS: ${{ secrets.CONTRACT_ADDRESS }}

@@ -55,6 +55,43 @@ npx hardhat test
 
 ## Deploy
 
+### 1. Generate relayer keypair
+
 ```bash
-npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"relayer":"0x..."}'
+cast wallet new
 ```
+
+Save the private key (without `0x` prefix) and note the address.
+
+### 2. Fund the relayer
+
+Send Arbitrum Sepolia ETH to the relayer address. You can get testnet ETH from an [Arbitrum Sepolia faucet](https://www.alchemy.com/faucets/arbitrum-sepolia).
+
+### 3. Deploy contract
+
+Local/default network:
+```bash
+npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts \
+  --parameters '{"SMTRootStorageModule": {"relayer": "0x<RELAYER_ADDRESS>"}}'
+```
+
+Arbitrum Sepolia (requires `ARB_SEPOLIA_RPC_URL` and `ARB_SEPOLIA_PRIVATE_KEY` env vars):
+```bash
+npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts \
+  --network arbitrumSepolia \
+  --parameters '{"SMTRootStorageModule": {"relayer": "0x<RELAYER_ADDRESS>"}}'
+```
+
+### 4. Configure GitHub Actions secrets
+
+Set these repository secrets for automated on-chain posting:
+
+| Secret | Value |
+|--------|-------|
+| `RPC_URL` | Arbitrum Sepolia RPC endpoint (e.g. from Alchemy/Infura) |
+| `RELAYER_PRIVATE_KEY` | Hex private key without `0x` prefix |
+| `CONTRACT_ADDRESS` | Deployed `SMTRootStorage` contract address |
+
+## CI/CD Integration
+
+The `update-smt.yml` workflow posts roots on-chain automatically via `smtbuild --post-root` after building SMT snapshots. It reads `root.json` files and calls `SMTRootStorage.setRoot()` for each issuer. Skips gracefully when secrets are not configured (forks/PRs).

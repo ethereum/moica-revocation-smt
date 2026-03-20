@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/moven0831/moica-revocation-smt/server/internal/chain"
 	"github.com/moven0831/moica-revocation-smt/server/internal/config"
 	"github.com/moven0831/moica-revocation-smt/server/internal/crl"
 	"github.com/moven0831/moica-revocation-smt/server/internal/smt"
@@ -28,7 +32,15 @@ type rootInfo struct {
 }
 
 func main() {
+	postRoot := flag.Bool("post-root", false, "Post SMT roots on-chain (reads root.json files, skips SMT build)")
+	flag.Parse()
+
 	cfg := config.Load()
+
+	if *postRoot {
+		postRootOnChain(cfg)
+		return
+	}
 
 	issuers := []issuer{
 		{ID: "g2", URL: cfg.CRLG2URL},
@@ -210,6 +222,84 @@ func main() {
 	} else {
 		log.Println("Done — no changes")
 	}
+}
+
+func postRootOnChain(cfg *config.Config) {
+	if cfg.RPCURL == "" || cfg.RelayerPrivateKey == "" || cfg.ContractAddress == "" {
+		log.Println("Skipping on-chain posting: RPC_URL, RELAYER_PRIVATE_KEY, or CONTRACT_ADDRESS not set")
+		return
+	}
+
+	client, err := chain.NewClient(cfg.RPCURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to RPC: %v", err)
+	}
+	defer client.Close()
+
+	relayer, err := chain.NewRelayer(client, cfg.RelayerPrivateKey, cfg.ContractAddress)
+	if err != nil {
+		log.Fatalf("Failed to create relayer: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := relayer.VerifyContract(ctx); err != nil {
+		cancel()
+		log.Fatalf("Contract verification failed: %v", err)
+	}
+	cancel()
+	log.Printf("Contract verified at %s (relayer: %s)", cfg.ContractAddress, relayer.Address().Hex())
+
+	type issuerEntry struct {
+		ID       string
+		IssuerID [32]byte
+	}
+	entries := []issuerEntry{
+		{ID: "g2", IssuerID: chain.IssuerG2},
+		{ID: "g3", IssuerID: chain.IssuerG3},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	for _, iss := range entries {
+		rootPath := filepath.Join(cfg.DataDir, iss.ID, "root.json")
+		data, err := os.ReadFile(rootPath)
+		if err != nil {
+			log.Printf("[%s] Skipping: %v", iss.ID, err)
+			continue
+		}
+
+		var info rootInfo
+		if err := json.Unmarshal(data, &info); err != nil {
+			log.Printf("[%s] Skipping: parse root.json: %v", iss.ID, err)
+			continue
+		}
+
+		root, ok := new(big.Int).SetString(strings.TrimPrefix(info.Root, "0x"), 16)
+		if !ok {
+			log.Printf("[%s] Skipping: invalid root hex: %s", iss.ID, info.Root)
+			continue
+		}
+
+		crlNumber, ok := new(big.Int).SetString(info.CRLNumber, 10)
+		if !ok {
+			log.Printf("[%s] Skipping: invalid crlNumber: %s", iss.ID, info.CRLNumber)
+			continue
+		}
+
+		log.Printf("[%s] Posting root on-chain: root=%s crlNumber=%s", iss.ID, info.Root, info.CRLNumber)
+		tx, err := relayer.PostRoot(ctx, iss.IssuerID, root, crlNumber)
+		if err != nil {
+			if strings.Contains(err.Error(), "stale CRL") {
+				log.Printf("[%s] Already posted (stale CRL), skipping", iss.ID)
+				continue
+			}
+			log.Printf("[%s] Failed to post root: %v", iss.ID, err)
+			continue
+		}
+		log.Printf("[%s] Root posted on-chain: tx=%s", iss.ID, tx.Hash().Hex())
+	}
+
+	log.Println("Done — on-chain posting complete")
 }
 
 func readExistingRoot(path string) (string, error) {
