@@ -9,6 +9,7 @@ jobs:
   update:
     name: Fetch CRL & Update SMT
     runs-on: ubuntu-latest
+    environment: SMTRootStorageModule
     permissions:
       contents: write
     defaults:
