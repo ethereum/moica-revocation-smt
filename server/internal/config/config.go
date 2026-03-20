@@ -34,7 +34,7 @@ func Load() *Config {
 		GRPCPort:          getEnvInt("GRPC_PORT", 50051),
 		DataDir:           getEnv("DATA_DIR", "./data"),
 		CRLG2URL:          getEnv("CRL_G2_URL", "https://moica.nat.gov.tw/repository/MOICA/CRL2/complete.crl"),
-		CRLG3URL:          getEnv("CRL_G3_URL", "https://moica.nat.gov.tw/repository/MOICA/CRL3/complete.crl"),
+		CRLG3URL:          getEnv("CRL_G3_URL", "https://crl-moica.moi.gov.tw/crl/MOICA-G3-complete.crl"),
 		CRLPollInterval:   getEnvInt("CRL_POLL_INTERVAL", 21600), // 6 hours
 		RPCURL:            getEnv("RPC_URL", ""),
 		RelayerPrivateKey: getEnv("RELAYER_PRIVATE_KEY", ""),
