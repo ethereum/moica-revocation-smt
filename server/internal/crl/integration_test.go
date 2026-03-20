@@ -12,7 +12,7 @@ import (
 
 const (
 	crlG2URL = "https://moica.nat.gov.tw/repository/MOICA/CRL2/complete.crl"
-	crlG3URL = "https://moica.nat.gov.tw/repository/MOICA/CRL3/complete.crl"
+	crlG3URL = "https://crl-moica.moi.gov.tw/crl/MOICA-G3-complete.crl"
 )
 
 func TestIntegrationG2CRL(t *testing.T) {
