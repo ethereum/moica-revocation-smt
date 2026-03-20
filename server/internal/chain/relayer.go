@@ -75,6 +75,26 @@ func (r *Relayer) ContractAddress() common.Address {
 	return r.contractAddress
 }
 
+// VerifyContract checks that the contract is reachable and the on-chain relayer matches this relayer's address.
+func (r *Relayer) VerifyContract(ctx context.Context) error {
+	instance, err := contract.NewSMTRootStorage(r.contractAddress, r.backend)
+	if err != nil {
+		return fmt.Errorf("bind contract: %w", err)
+	}
+
+	onChainRelayer, err := instance.Relayer(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		return fmt.Errorf("query relayer(): %w", err)
+	}
+
+	expected := r.Address()
+	if onChainRelayer != expected {
+		return fmt.Errorf("relayer mismatch: contract has %s, expected %s", onChainRelayer.Hex(), expected.Hex())
+	}
+
+	return nil
+}
+
 // PostRoot sends a setRoot transaction to the SMTRootStorage contract and waits for confirmation.
 func (r *Relayer) PostRoot(ctx context.Context, issuerID [32]byte, root *big.Int, crlNumber *big.Int) (*types.Transaction, error) {
 	instance, err := contract.NewSMTRootStorage(r.contractAddress, r.backend)

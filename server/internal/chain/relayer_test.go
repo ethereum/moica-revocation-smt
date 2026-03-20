@@ -105,6 +105,32 @@ func TestIssuerIDs(t *testing.T) {
 	}
 }
 
+func TestVerifyContract(t *testing.T) {
+	env := newTestEnv(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := env.relayer.VerifyContract(ctx); err != nil {
+		t.Fatalf("VerifyContract failed: %v", err)
+	}
+}
+
+func TestVerifyContractWrongAddress(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Point relayer at a non-contract address.
+	env.relayer.contractAddress = common.HexToAddress("0x0000000000000000000000000000000000000001")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := env.relayer.VerifyContract(ctx)
+	if err == nil {
+		t.Fatal("expected error for wrong contract address, got nil")
+	}
+}
+
 func TestPostRoot(t *testing.T) {
 	env := newTestEnv(t)
 

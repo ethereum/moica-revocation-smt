@@ -241,6 +241,14 @@ func postRootOnChain(cfg *config.Config) {
 		log.Fatalf("Failed to create relayer: %v", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := relayer.VerifyContract(ctx); err != nil {
+		cancel()
+		log.Fatalf("Contract verification failed: %v", err)
+	}
+	cancel()
+	log.Printf("Contract verified at %s (relayer: %s)", cfg.ContractAddress, relayer.Address().Hex())
+
 	type issuerEntry struct {
 		ID       string
 		IssuerID [32]byte
@@ -250,7 +258,7 @@ func postRootOnChain(cfg *config.Config) {
 		{ID: "g3", IssuerID: chain.IssuerG3},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	for _, iss := range entries {
 		rootPath := filepath.Join(cfg.DataDir, iss.ID, "root.json")
