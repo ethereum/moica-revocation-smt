@@ -34,7 +34,7 @@ npx hardhat test
 
 Two entry points in `server/cmd/`:
 - **smtserver** — Long-running REST (port 3000) + gRPC (port 50051) server with CRL polling
-- **smtbuild** — One-shot CLI: fetch CRL → build SMT → export snapshot (used in CI cron)
+- **smtbuild** — One-shot CLI: fetch CRL → build SMT → export snapshot (used in CI cron). With `--post-root`, reads `root.json` files and posts roots on-chain via `SMTRootStorage.setRoot()`
 
 ### Key packages (`server/internal/`)
 
@@ -45,7 +45,7 @@ Two entry points in `server/cmd/`:
 | `manager/` | Thread-safe per-issuer (`g2`, `g3`) tree management via `TreeManager` |
 | `api/rest/` | Chi router: `GET /proof/{issuerId}/{sn}`, `GET /status` |
 | `api/grpcapi/` | gRPC mirror of REST API |
-| `chain/` | Ethereum client wrapper + relayer for `setRoot` transactions |
+| `chain/` | Ethereum client wrapper + relayer for `setRoot` transactions. `chain/contract/` has abigen-generated bindings |
 | `snapshot/` | Gzip JSON export/import + GitHub Release download |
 | `store/` | Store interface with MemoryStore and BadgerStore implementations |
 | `config/` | Environment variable loader |
@@ -75,7 +75,7 @@ Simple root registry: `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNum
 ## CI/CD
 
 - **ci.yml** — On push/PR: Go unit tests + build, Hardhat contract tests, E2E integration tests (downloads real G2 snapshot)
-- **update-smt.yml** — Cron (04:00 & 16:00 UTC): smtbuild → commit snapshots → upload to `snapshot-latest` release
+- **update-smt.yml** — Cron (04:00 & 16:00 UTC): smtbuild → commit snapshots → upload to `snapshot-latest` release → `smtbuild --post-root` posts roots on-chain (Arbitrum Sepolia)
 
 ## Data Scale
 

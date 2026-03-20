@@ -125,13 +125,28 @@ Service `RevocationProofService` on port 50051 with `GetProof` and `GetStatus` R
 
 Issuer IDs: `keccak256("MOICA-G2")`, `keccak256("MOICA-G3")`
 
-Deploy:
+Deploy to Arbitrum Sepolia:
+
+1. Generate relayer keypair: `cast wallet new`
+2. Fund relayer address with Arbitrum Sepolia ETH
+3. Deploy:
 ```bash
 cd onchain-contract
 nvm use 22
 pnpm install
-npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"relayer":"0x..."}'
+npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts \
+  --network arbitrumSepolia \
+  --parameters '{"SMTRootStorageModule": {"relayer": "0x<RELAYER_ADDRESS>"}}'
 ```
+4. Set GitHub Actions secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY` (hex, no `0x`), `CONTRACT_ADDRESS`
+
+Post roots on-chain manually (reads `root.json` files, skips gracefully if env vars are unset):
+```bash
+cd server
+./bin/smtbuild --post-root
+```
+
+See [onchain-contract/README.md](onchain-contract/README.md) for detailed setup instructions.
 
 ## Environment Variables
 
@@ -159,9 +174,9 @@ npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts --parameters '{"r
 1. Build server binary
 2. Fetch CRL, build SMT, export snapshot (skipped if merkle root is unchanged)
 3. Upload snapshot to GitHub Release
-4. Post root on-chain
+4. Post root on-chain via `smtbuild --post-root` (Arbitrum Sepolia)
 
-Required secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY`, `CONTRACT_ADDRESS`
+Required secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY`, `CONTRACT_ADDRESS` (on-chain posting skips gracefully if unset)
 
 ## SMT Compatibility
 
