@@ -2,6 +2,14 @@
 
 On-chain registry for Sparse Merkle Tree roots from MOICA Certificate Revocation Lists.
 
+## Deployed Contract
+
+| Network | Address |
+|---------|---------|
+| Arbitrum Sepolia | [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA) |
+
+The CRL pipeline (fetch → parse → build SMT) produces a Merkle root per issuer, which the CI relayer posts on-chain via `setRoot()`. The contract enforces monotonic CRL numbers to prevent stale updates. Anyone can read the latest root with `getRoot(issuerId)` and verify membership/non-membership proofs off-chain.
+
 ## Contract
 
 **SMTRootStorage.sol** (Solidity 0.8.28)
