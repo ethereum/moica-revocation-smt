@@ -118,9 +118,13 @@ Service `RevocationProofService` on port 50051 with `GetProof` and `GetStatus` R
 
 **SMTRootStorage.sol** — on-chain registry for SMT roots.
 
+**Deployed on Arbitrum Sepolia:** [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA)
+
+The contract stores SMT Merkle roots on-chain so anyone can verify certificate revocation status against a trusted root. A CI relayer updates roots twice daily after rebuilding from MOICA CRL data. Each root is tied to a monotonically increasing CRL number to prevent stale updates. Anyone can call `getRoot(issuerId)` to read the latest root and verify proofs off-chain.
+
 | Function | Description |
 |----------|-------------|
-| `setRoot(bytes32 issuerId, uint256 root, uint256 crlNumber)` | Update root (relayer only, monotonic CRL number) |
+| `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNumber)` | Update root (relayer only, monotonic CRL number) |
 | `getRoot(bytes32 issuerId) → uint256` | Read current root |
 
 Issuer IDs: `keccak256("MOICA-G2")`, `keccak256("MOICA-G3")`
