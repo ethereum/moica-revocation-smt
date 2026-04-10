@@ -34,6 +34,17 @@ jobs:
         env:
           DATA_DIR: ./data
 
+      - name: Convert existing snapshots to binary (if missing)
+        run: |
+          for gen in g2 g3; do
+            json="data/${gen}/tree-snapshot.json.gz"
+            bin="data/${gen}/tree-snapshot.bin.gz"
+            if [ -f "$json" ] && [ ! -f "$bin" ]; then
+              echo "Converting $json to binary..."
+              ./bin/smtbuild --convert-binary "$json"
+            fi
+          done
+
       - name: Commit data
         if: steps.build.outputs.changed == 'true'
         run: |
@@ -46,8 +57,22 @@ jobs:
             git push
           fi
 
+      - name: Check if release needs update
+        id: release-check
+        run: |
+          # Upload if CRL changed OR if new asset types are missing from the release
+          if [ "${{ steps.build.outputs.changed }}" = "true" ]; then
+            echo "needs_upload=true" >> "$GITHUB_OUTPUT"
+          elif ! gh release view snapshot-latest --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'smt.wasm'; then
+            echo "needs_upload=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_upload=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload snapshot
-        if: steps.build.outputs.changed == 'true'
+        if: steps.release-check.outputs.needs_upload == 'true'
         run: |
           gh release delete snapshot-latest --yes || true
           assets=""
