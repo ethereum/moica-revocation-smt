@@ -221,7 +221,7 @@ Convert existing JSON snapshot: `./bin/smtbuild --convert-binary data/g2/tree-sn
 Web or mobile clients can use the published release artifacts to load an SMT and generate proofs locally:
 
 1. **Load runtime** — include `wasm_exec.js` (Go's JS glue), instantiate `smt.wasm` via `WebAssembly.instantiateStreaming`
-2. **Fetch snapshot** — download `g2-tree-snapshot.bin.gz` (desktop, decompress via `DecompressionStream`) or `g2-tree-snapshot.bin` (mobile, no decompression needed)
+2. **Fetch snapshot** — download `g2-tree-snapshot.bin.gz` and decompress (browser: `DecompressionStream`, native: `gzip` library)
 3. **Build tree** — parse 52-byte binary header → `smtInitTree(nodeCount, depth)` → stream nodes via `smtAddNodeChunk(chunk)` in batches of ~10,000 → `smtFinalize(rootHex, leafCount)`
 4. **Generate proof** — `smtCreateProof(serialNumberHex)` → parse JSON → convert hex to decimal strings → pad siblings to depth 128
 5. **Feed to circuit** — proof fields (`smtRoot`, `smtSiblings[128]`, `smtOldKey`, `smtOldValue`, `smtIsOld0`) become inputs for `SMTNonMembershipVerifier(128)` in the [zkID](https://github.com/zkmopro/zkID) circom circuit
@@ -234,8 +234,7 @@ The `snapshot-latest` release (updated twice daily) includes:
 |-------|------|-------------|
 | `smt.wasm` | ~3.3MB | Go WASM module |
 | `wasm_exec.js` | ~17KB | Go WASM runtime support |
-| `g2-tree-snapshot.bin.gz` | ~71MB | Compressed binary snapshot (desktop) |
-| `g2-tree-snapshot.bin` | ~105MB | Uncompressed binary snapshot (mobile) |
+| `g2-tree-snapshot.bin.gz` | ~71MB | Binary snapshot (gzip-compressed) |
 | `g2-tree-snapshot.json.gz` | ~76MB | JSON snapshot (server) |
 
 ### Performance (Benchmark)
@@ -248,8 +247,6 @@ The `snapshot-latest` release (updated twice daily) includes:
 | Proof generation | <1ms | 1ms | 3ms |
 | WASM heap | 442MB | 424MB | 424MB |
 | **Total** | **3.2s** | **16.3s** | **21.1s** |
-
-**Tip:** Serving uncompressed `.bin` (no gzip) eliminates the mobile decompression bottleneck, reducing mobile total time to ~2-7s.
 
 Run the benchmark locally: `cd server && make benchmark` → opens `http://localhost:8080/benchmark.html`
 
