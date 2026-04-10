@@ -52,7 +52,9 @@ curl -L -o data/g3/tree-snapshot.json.gz \
   https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz
 ```
 
-Snapshots are gzip-compressed JSON containing the full SMT node tree, compatible with `@zk-kit/smt` v1.0.2.
+Snapshots are available in two formats:
+- **JSON** (`.json.gz`) — compatible with `@zk-kit/smt` v1.0.2, used by the server
+- **Binary** (`.bin.gz` / `.bin`) — compact format for client-side WASM loading (see [Client-Side WASM](#client-side-wasm))
 
 The latest Merkle roots for each issuer are displayed in the [snapshot-latest release notes](https://github.com/moven0831/moica-revocation-smt/releases/tag/snapshot-latest). Since the SMT is deterministic, anyone can independently verify a root by rebuilding from the same CRL data.
 
@@ -167,17 +169,111 @@ See [onchain-contract/README.md](onchain-contract/README.md) for detailed setup 
 | `CONTRACT_ADDRESS` | — | SMTRootStorage contract address |
 | `GITHUB_REPO` | `moven0831/moica-revocation-smt` | GitHub repo for snapshot releases |
 
+## Client-Side WASM
+
+A Go WASM module (`smt.wasm`, ~3.3MB) enables loading the full SMT and generating proofs entirely in the browser — no server round-trip needed.
+
+### WASM API
+
+Build: `cd server && make build-wasm` (requires Go 1.24+)
+
+The WASM module exposes these functions on `globalThis`:
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `smtInitTree` | `(nodeCount, depth)` | Pre-allocate tree structure |
+| `smtAddNodeChunk` | `(Uint8Array)` → `number` | Stream binary nodes in chunks, returns count parsed |
+| `smtFinalize` | `(rootHex, leafCount)` | Set root and finalize tree for proof generation |
+| `smtCreateProof` | `(keyHex)` → `string` | Generate proof, returns JSON with `root`, `entry`, `matchingEntry`, `siblings` |
+| `smtVerifyProof` | `(proofJSON)` → `boolean` | Verify a proof |
+| `smtGetMemStats` | `()` → `string` | Go runtime memory stats as JSON |
+
+Proof output format: all values are bare hex (no `0x` prefix), matching the server's REST API structure.
+
+### Binary Snapshot Format
+
+The binary format is a compact representation of the SMT node tree, designed for efficient chunked streaming to WASM.
+
+**Header** (52 bytes, big-endian):
+```
+[0:2]   magic       uint16  0x534D ("SM")
+[2:4]   version     uint16  1
+[4:8]   nodeCount   uint32
+[8:40]  rootHash    [32]byte
+[40:44] depth       uint32
+[44:52] crlNumber   uint64
+```
+
+**Per node** (variable size):
+```
+[0:1]   type    uint8   (0=branch, 1=leaf)
+[1:33]  hash    [32]byte
+Branch: [33:65] left [32]byte, [65:97] right [32]byte    (97 bytes total)
+Leaf:   [33:65] key [32]byte, [65:97] value [32]byte, [97:129] entryMark [32]byte    (129 bytes total)
+```
+
+Build binary snapshots: `cd server && make build-binary` or `./bin/smtbuild --binary`
+
+Convert existing JSON snapshot: `./bin/smtbuild --convert-binary data/g2/tree-snapshot.json.gz`
+
+### Client Integration Guide
+
+Web or mobile clients can use the published release artifacts to load an SMT and generate proofs locally:
+
+1. **Load runtime** — include `wasm_exec.js` (Go's JS glue), instantiate `smt.wasm` via `WebAssembly.instantiateStreaming`
+2. **Fetch snapshot** — download `g2-tree-snapshot.bin.gz` (desktop, decompress via `DecompressionStream`) or `g2-tree-snapshot.bin` (mobile, no decompression needed)
+3. **Build tree** — parse 52-byte binary header → `smtInitTree(nodeCount, depth)` → stream nodes via `smtAddNodeChunk(chunk)` in batches of ~10,000 → `smtFinalize(rootHex, leafCount)`
+4. **Generate proof** — `smtCreateProof(serialNumberHex)` → parse JSON → convert hex to decimal strings → pad siblings to depth 128
+5. **Feed to circuit** — proof fields (`smtRoot`, `smtSiblings[128]`, `smtOldKey`, `smtOldValue`, `smtIsOld0`) become inputs for `SMTNonMembershipVerifier(128)` in the [zkID](https://github.com/zkmopro/zkID) circom circuit
+
+### Release Assets
+
+The `snapshot-latest` release (updated twice daily) includes:
+
+| Asset | Size | Description |
+|-------|------|-------------|
+| `smt.wasm` | ~3.3MB | Go WASM module |
+| `wasm_exec.js` | ~17KB | Go WASM runtime support |
+| `g2-tree-snapshot.bin.gz` | ~71MB | Compressed binary snapshot (desktop) |
+| `g2-tree-snapshot.bin` | ~105MB | Uncompressed binary snapshot (mobile) |
+| `g2-tree-snapshot.json.gz` | ~76MB | JSON snapshot (server) |
+
+### Performance (Benchmark)
+
+| Metric | Desktop (M3, Chrome) | iPhone (Safari) | Android (Chrome) |
+|--------|---------------------|-----------------|------------------|
+| Download | 6ms (localhost) | 103ms | 157ms |
+| Decompress (.bin.gz) | 296ms | 14.4s | 14.9s |
+| Tree load | 2.85s | 1.74s | 5.86s |
+| Proof generation | <1ms | 1ms | 3ms |
+| WASM heap | 442MB | 424MB | 424MB |
+| **Total** | **3.2s** | **16.3s** | **21.1s** |
+
+**Tip:** Serving uncompressed `.bin` (no gzip) eliminates the mobile decompression bottleneck, reducing mobile total time to ~2-7s.
+
+Run the benchmark locally: `cd server && make benchmark` → opens `http://localhost:8080/benchmark.html`
+
+### Mobile Integration Path
+
+The same binary snapshot and proof format work across platforms:
+
+- **Web** — Go WASM (`smt.wasm`) loaded via `wasm_exec.js` + `WebAssembly.instantiateStreaming`
+- **Mobile (Flutter/React Native)** — Go mobile bindings via `gomobile bind` or Rust FFI reimplementation using the same binary format
+- **Proof conversion** — hex-to-decimal + sibling padding is ~50 lines of platform-agnostic logic, easily ported to any language
+- **Circuit** — same `SMTNonMembershipVerifier(128)` circom circuit, same witness format; [mopro](https://github.com/zkmopro/mopro) handles mobile proving
+
 ## CI/CD
 
 **`ci.yml`** — runs on push/PR to main:
 - Go server: `go test ./...` + build binary
+- WASM: verify `smt.wasm` compiles (`GOOS=js GOARCH=wasm`)
 - E2E integration: downloads real G2 snapshot (~412k entries), verifies proofs via REST + gRPC
 - Contracts: `npx hardhat test` (Node 22)
 
 **`update-smt.yml`** — runs twice daily at 12:00/00:00 UTC+8 (04:00/16:00 UTC):
-1. Build server binary
-2. Fetch CRL, build SMT, export snapshot (skipped if merkle root is unchanged)
-3. Upload snapshot to GitHub Release
+1. Build server binary + WASM module
+2. Fetch CRL, build SMT, export JSON + binary snapshots (skipped if merkle root is unchanged)
+3. Upload snapshots, WASM module, and `wasm_exec.js` to GitHub Release (`snapshot-latest`)
 4. Post root on-chain via `smtbuild --post-root` (Arbitrum Sepolia)
 
 Required secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY`, `CONTRACT_ADDRESS` (on-chain posting skips gracefully if unset)
