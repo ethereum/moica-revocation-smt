@@ -121,6 +121,9 @@ func ImportBinary(h smt.Hasher, r io.Reader) (*smt.SMT, uint64, error) {
 			return nil, 0, fmt.Errorf("read node %d hash: %w", i, err)
 		}
 
+		if typeBuf[0] > 1 {
+			return nil, 0, fmt.Errorf("invalid node %d type: %d (expected 0=branch or 1=leaf)", i, typeBuf[0])
+		}
 		isLeaf := typeBuf[0] == 1
 		numChildren := 2
 		if isLeaf {

@@ -53,6 +53,9 @@ func addNodeChunk(_ js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return jsError("addNodeChunk requires (uint8Array)")
 	}
+	if nodes == nil {
+		return jsError("call smtInitTree before smtAddNodeChunk")
+	}
 
 	jsArr := args[0]
 	length := jsArr.Get("length").Int()
@@ -103,6 +106,9 @@ func finalize(_ js.Value, args []js.Value) any {
 	if len(args) < 2 {
 		return jsError("finalize requires (rootHex, count)")
 	}
+	if tree == nil {
+		return jsError("call smtInitTree before smtFinalize")
+	}
 
 	rootHex := args[0].String()
 	count := args[1].Int()
@@ -123,6 +129,9 @@ func finalize(_ js.Value, args []js.Value) any {
 func createProof(_ js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return jsError("createProof requires (keyHex)")
+	}
+	if tree == nil {
+		return jsError("tree not initialized — call smtInitTree and smtFinalize first")
 	}
 
 	keyHex := args[0].String()
@@ -145,6 +154,9 @@ func createProof(_ js.Value, args []js.Value) any {
 func verifyProof(_ js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return jsError("verifyProof requires (proofJSON)")
+	}
+	if tree == nil {
+		return jsError("tree not initialized — call smtInitTree and smtFinalize first")
 	}
 
 	proofJSON := args[0].String()

@@ -326,7 +326,11 @@ func convertJSONToBinary(jsonPath string) {
 	if err != nil {
 		log.Fatalf("Failed to import JSON snapshot: %v", err)
 	}
-	log.Printf("Loaded: %d entries, root=0x%s, CRL#%d", tree.Count, tree.Root.Text(16)[:16], crlNumber)
+	rootHex := tree.Root.Text(16)
+	if len(rootHex) > 16 {
+		rootHex = rootHex[:16]
+	}
+	log.Printf("Loaded: %d entries, root=0x%s, CRL#%d", tree.Count, rootHex, crlNumber)
 
 	// Output path: same directory, replace .json.gz with .bin.gz
 	outPath := strings.TrimSuffix(jsonPath, ".json.gz") + ".bin.gz"
