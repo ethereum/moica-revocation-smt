@@ -175,6 +175,42 @@ func (t *SMT) Nodes() map[string]ChildNodes {
 	return t.nodes
 }
 
+// RawNode holds a single node's data as fixed-size byte arrays for binary export.
+type RawNode struct {
+	IsLeaf   bool
+	Hash     [32]byte
+	Children [][32]byte // 2 for branch, 3 for leaf
+}
+
+// bigTo32 writes a big.Int into a zero-padded 32-byte big-endian array.
+func bigTo32(n *big.Int) [32]byte {
+	var buf [32]byte
+	if n != nil && n.Sign() > 0 {
+		n.FillBytes(buf[:])
+	}
+	return buf
+}
+
+// NodesRaw returns all nodes as RawNode slices for efficient binary export.
+func (t *SMT) NodesRaw() []RawNode {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	out := make([]RawNode, 0, len(t.nodes))
+	for hashHex, cn := range t.nodes {
+		hashBig, _ := new(big.Int).SetString(hashHex, 16)
+		rn := RawNode{
+			IsLeaf:   cn.IsLeaf(),
+			Hash:     bigTo32(hashBig),
+			Children: make([][32]byte, len(cn)),
+		}
+		for i, c := range cn {
+			rn.Children[i] = bigTo32(c)
+		}
+		out = append(out, rn)
+	}
+	return out
+}
+
 // Keys returns copies of all leaf keys (serial numbers) in the tree.
 func (t *SMT) Keys() []*big.Int {
 	t.mu.RLock()

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMT WASM Benchmark</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f5f5f5; }
+  .metric-val { font-family: monospace; font-weight: bold; }
+  #status { padding: 1rem; background: #f0f0f0; border-radius: 4px; margin: 1rem 0; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; max-height: 300px; overflow-y: auto; }
+  .error { color: #c00; }
+  .pass { color: #080; }
+  input { padding: 4px 8px; font-family: monospace; width: 320px; }
+  button { padding: 6px 16px; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<h1>MOICA SMT WASM Benchmark</h1>
+
+<div>
+  <label>Snapshot URL (gzipped binary): <br>
+    <input id="snapshotUrl" type="text" value="tree-snapshot.bin.gz" placeholder="URL or local path to .bin.gz snapshot">
+  </label>
+  <div style="font-size:0.8rem;color:#666;margin-top:2px;">
+    Use <code>make benchmark</code> to convert the local JSON snapshot and serve this page.
+  </div>
+</div>
+<div style="margin-top: 8px;">
+  <label>Test serial number (hex): <br>
+    <input id="testKey" type="text" value="100048210DD2DF2E128096A9282B5EC5" placeholder="hex serial number">
+  </label>
+</div>
+<div style="margin-top: 8px;">
+  <button id="runBtn" onclick="runBenchmark()" disabled>Loading WASM...</button>
+</div>
+
+<div id="status">Initializing...</div>
+
+<table id="results" style="display:none;">
+  <thead>
+    <tr><th>Metric</th><th>Value</th></tr>
+  </thead>
+  <tbody id="resultsBody"></tbody>
+</table>
+
+<div id="proofOutput" style="display:none; margin-top:1rem;">
+  <h3>Proof</h3>
+  <pre id="proofJSON" style="background:#f5f5f5; padding:1rem; overflow-x:auto; font-size:0.8rem; max-height:300px; overflow-y:auto;"></pre>
+</div>
+
+<script src="wasm_exec.js"></script>
+<script>
+const CHUNK_SIZE = 10000;
+const BINARY_HEADER_SIZE = 52;
+const BRANCH_NODE_SIZE = 97; // 1 + 32 + 32 + 32
+const LEAF_NODE_SIZE = 129;  // 1 + 32 + 32 + 32 + 32
+
+const statusEl = document.getElementById('status');
+const runBtn = document.getElementById('runBtn');
+
+function log(msg) {
+  statusEl.textContent += msg + '\n';
+  statusEl.scrollTop = statusEl.scrollHeight;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function formatMs(ms) {
+  if (ms < 1000) return ms.toFixed(0) + ' ms';
+  return (ms / 1000).toFixed(2) + ' s';
+}
+
+function addResult(metric, value) {
+  const tbody = document.getElementById('resultsBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${metric}</td><td class="metric-val">${value}</td>`;
+  tbody.appendChild(tr);
+  document.getElementById('results').style.display = '';
+}
+
+// Check for DecompressionStream support
+if (!('DecompressionStream' in window)) {
+  log('ERROR: DecompressionStream API not available in this browser.');
+  log('Required: Chrome 80+, Firefox 113+, Safari 16.4+');
+  statusEl.classList.add('error');
+} else {
+  // Load WASM
+  const go = new Go();
+  const wasmFetchStart = performance.now();
+  WebAssembly.instantiateStreaming(fetch('smt.wasm'), go.importObject).then(result => {
+    const wasmLoadTime = performance.now() - wasmFetchStart;
+    go.run(result.instance);
+    log(`WASM loaded in ${formatMs(wasmLoadTime)}`);
+    runBtn.textContent = 'Run Benchmark';
+    runBtn.disabled = false;
+    addResult('WASM binary size', formatBytes(result.module ? 'N/A' : 'N/A'));
+  }).catch(err => {
+    log('WASM load error: ' + err.message);
+    statusEl.classList.add('error');
+  });
+
+  // Also fetch the WASM size via HEAD
+  fetch('smt.wasm', { method: 'HEAD' }).then(r => {
+    const size = r.headers.get('content-length');
+    if (size) addResult('WASM binary size', formatBytes(parseInt(size)));
+  }).catch(() => {});
+}
+
+async function runBenchmark() {
+  runBtn.disabled = true;
+  statusEl.textContent = '';
+  document.getElementById('resultsBody').innerHTML = '';
+  document.getElementById('proofOutput').style.display = 'none';
+
+  const url = document.getElementById('snapshotUrl').value;
+  const testKey = document.getElementById('testKey').value;
+
+  try {
+    // 1. Download
+    log('Downloading snapshot...');
+    const dlStart = performance.now();
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) addResult('Snapshot download size', formatBytes(parseInt(contentLength)));
+
+    // 2. Decompress
+    log('Decompressing...');
+    const decompStart = performance.now();
+    const dlTime = decompStart - dlStart;
+    addResult('Download time', formatMs(dlTime));
+
+    const ds = new DecompressionStream('gzip');
+    const decompressedStream = response.body.pipeThrough(ds);
+    const decompressedBlob = await new Response(decompressedStream).arrayBuffer();
+    const decompressedBytes = new Uint8Array(decompressedBlob);
+    const decompTime = performance.now() - decompStart;
+    addResult('Decompressed size', formatBytes(decompressedBytes.length));
+    addResult('Decompress time', formatMs(decompTime));
+    log(`Decompressed: ${formatBytes(decompressedBytes.length)} in ${formatMs(decompTime)}`);
+
+    // 3. Parse header
+    const view = new DataView(decompressedBytes.buffer);
+    const magic = view.getUint16(0);
+    if (magic !== 0x534D) throw new Error(`Invalid magic: 0x${magic.toString(16)}`);
+    const version = view.getUint16(2);
+    if (version !== 1) throw new Error(`Unsupported version: ${version}`);
+    const nodeCount = view.getUint32(4);
+    const rootHash = Array.from(decompressedBytes.slice(8, 40)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const depth = view.getUint32(40);
+    const crlNumber = Number(view.getBigUint64(44));
+
+    log(`Header: ${nodeCount} nodes, depth=${depth}, CRL#${crlNumber}`);
+    addResult('Node count', nodeCount.toLocaleString());
+    addResult('Tree depth', depth);
+
+    // 4. Initialize tree
+    log('Initializing WASM tree...');
+    smtInitTree(nodeCount, depth);
+
+    // 5. Stream nodes in chunks
+    log('Loading nodes into WASM...');
+    const loadStart = performance.now();
+    let offset = BINARY_HEADER_SIZE;
+    let totalParsed = 0;
+    let chunkNum = 0;
+
+    while (offset < decompressedBytes.length) {
+      // Determine chunk end: read up to CHUNK_SIZE nodes
+      let chunkEnd = offset;
+      let nodesInChunk = 0;
+      while (nodesInChunk < CHUNK_SIZE && chunkEnd < decompressedBytes.length) {
+        const isLeaf = decompressedBytes[chunkEnd] === 1;
+        const nodeSize = isLeaf ? LEAF_NODE_SIZE : BRANCH_NODE_SIZE;
+        if (chunkEnd + nodeSize > decompressedBytes.length) break;
+        chunkEnd += nodeSize;
+        nodesInChunk++;
+      }
+
+      if (nodesInChunk === 0) break;
+
+      const chunk = decompressedBytes.slice(offset, chunkEnd);
+      const parsed = smtAddNodeChunk(chunk);
+      totalParsed += parsed;
+      offset = chunkEnd;
+      chunkNum++;
+
+      if (chunkNum % 10 === 0) {
+        log(`  Loaded ${totalParsed.toLocaleString()} / ${nodeCount.toLocaleString()} nodes`);
+      }
+    }
+
+    const loadTime = performance.now() - loadStart;
+    log(`Loaded ${totalParsed.toLocaleString()} nodes in ${formatMs(loadTime)}`);
+    addResult('Tree load time', formatMs(loadTime));
+
+    // Count leaves for finalize
+    // We know from the binary format that leaves have type=1
+    // totalParsed is total nodes; we need leaf count
+    // Re-scan to count leaves (fast, just check type bytes)
+    let leafCount = 0;
+    let scanOffset = BINARY_HEADER_SIZE;
+    while (scanOffset < decompressedBytes.length) {
+      const isLeaf = decompressedBytes[scanOffset] === 1;
+      if (isLeaf) leafCount++;
+      scanOffset += isLeaf ? LEAF_NODE_SIZE : BRANCH_NODE_SIZE;
+    }
+
+    // 6. Finalize
+    smtFinalize(rootHash, leafCount);
+    log(`Finalized: root=${rootHash.slice(0,16)}..., count=${leafCount}`);
+    addResult('Leaf count (entries)', leafCount.toLocaleString());
+
+    // 7. Memory stats
+    const memJSON = smtGetMemStats();
+    const mem = JSON.parse(memJSON);
+    addResult('WASM heap in use', formatBytes(mem.heapInuse));
+    addResult('WASM heap alloc', formatBytes(mem.heapAlloc));
+    addResult('WASM sys memory', formatBytes(mem.sys));
+    addResult('GC cycles', mem.numGC);
+    log(`Memory: heapInuse=${formatBytes(mem.heapInuse)}, sys=${formatBytes(mem.sys)}`);
+
+    // 8. Generate proof
+    log(`Generating proof for ${testKey}...`);
+    const proofStart = performance.now();
+    const proofJSON = smtCreateProof(testKey);
+    const proofTime = performance.now() - proofStart;
+    addResult('Proof generation time', formatMs(proofTime));
+    log(`Proof generated in ${formatMs(proofTime)}`);
+
+    const proof = JSON.parse(proofJSON);
+    addResult('Proof type', proof.membership ? 'Membership' : 'Non-membership');
+    addResult('Siblings count', proof.siblings.length);
+
+    // 9. Verify proof
+    const verifyStart = performance.now();
+    const valid = smtVerifyProof(proofJSON);
+    const verifyTime = performance.now() - verifyStart;
+    addResult('Proof verification time', formatMs(verifyTime));
+    addResult('Proof valid', valid ? 'YES' : 'NO');
+    log(`Verification: ${valid ? 'VALID' : 'INVALID'} in ${formatMs(verifyTime)}`);
+
+    // 10. Total time
+    const totalTime = performance.now() - dlStart;
+    addResult('TOTAL end-to-end time', formatMs(totalTime));
+    log(`\nDONE. Total: ${formatMs(totalTime)}`);
+    statusEl.classList.add(valid ? 'pass' : 'error');
+
+    // Show proof
+    document.getElementById('proofJSON').textContent = JSON.stringify(proof, null, 2);
+    document.getElementById('proofOutput').style.display = '';
+
+  } catch (err) {
+    log(`\nERROR: ${err.message}`);
+    statusEl.classList.add('error');
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

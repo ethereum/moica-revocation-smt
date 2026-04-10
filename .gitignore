@@ -1,8 +1,15 @@
 # Snapshot binaries (kept in GitHub Releases only)
 server/data/**/*.json.gz
+server/data/**/*.bin.gz
 
-# Go server
+# Go build output
 server/bin/
+server/smtbuild
+
+# WASM build output (kept in GitHub Releases only)
+server/wasm/smt.wasm
+server/wasm/wasm_exec.js
+server/wasm/tree-snapshot.bin.gz
 
 # OS
 .DS_Store

@@ -25,9 +25,12 @@ jobs:
       - name: Build CLI
         run: go build -o bin/smtbuild ./cmd/smtbuild
 
+      - name: Build WASM
+        run: GOOS=js GOARCH=wasm go build -o wasm/smt.wasm ./wasm/
+
       - name: Fetch CRL & Build SMT
         id: build
-        run: ./bin/smtbuild
+        run: ./bin/smtbuild --binary
         env:
           DATA_DIR: ./data
 
@@ -51,11 +54,21 @@ jobs:
           notes="Auto-updated SMT snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)"$'\n\n'
           for gen in g2 g3; do
             src="data/${gen}/tree-snapshot.json.gz"
+            bin_src="data/${gen}/tree-snapshot.bin.gz"
             root_file="data/${gen}/root.json"
             if [ -f "$src" ]; then
               dest="data/${gen}/${gen}-tree-snapshot.json.gz"
               cp "$src" "$dest"
               assets="$assets $dest"
+            fi
+            if [ -f "$bin_src" ]; then
+              bin_dest="data/${gen}/${gen}-tree-snapshot.bin.gz"
+              cp "$bin_src" "$bin_dest"
+              assets="$assets $bin_dest"
+              # Generate uncompressed variant for mobile clients
+              bin_uncompressed="data/${gen}/${gen}-tree-snapshot.bin"
+              gunzip -c "$bin_src" > "$bin_uncompressed"
+              assets="$assets $bin_uncompressed"
             fi
             if [ -f "$root_file" ]; then
               root=$(jq -r '.root' "$root_file")
@@ -69,6 +82,16 @@ jobs:
               notes+="- **Updated:** ${ts}"$'\n\n'
             fi
           done
+          # Add WASM module assets
+          if [ -f "wasm/smt.wasm" ]; then
+            assets="$assets wasm/smt.wasm"
+          fi
+          WASM_JS="$(go env GOROOT)/lib/wasm/wasm_exec.js"
+          if [ ! -f "$WASM_JS" ]; then WASM_JS="$(go env GOROOT)/misc/wasm/wasm_exec.js"; fi
+          if [ -f "$WASM_JS" ]; then
+            cp "$WASM_JS" wasm/wasm_exec.js
+            assets="$assets wasm/wasm_exec.js"
+          fi
           if [ -n "$assets" ]; then
             gh release create snapshot-latest \
               --title "SMT Snapshot" \
