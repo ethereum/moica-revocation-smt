@@ -258,7 +258,7 @@ Run the benchmark locally: `cd server && make benchmark` → opens `http://local
 The same binary snapshot and proof format work across platforms:
 
 - **Web** — Go WASM (`smt.wasm`) loaded via `wasm_exec.js` + `WebAssembly.instantiateStreaming`
-- **Mobile (Flutter/React Native)** — Go mobile bindings via `gomobile bind` or Rust FFI reimplementation using the same binary format
+- **Mobile (iOS/Android)** — Go mobile bindings via `gomobile bind` (`.xcframework` for Swift, `.aar` for Kotlin) using the same binary format
 - **Proof conversion** — hex-to-decimal + sibling padding is ~50 lines of platform-agnostic logic, easily ported to any language
 - **Circuit** — same `SMTNonMembershipVerifier(128)` circom circuit, same witness format; [mopro](https://github.com/zkmopro/mopro) handles mobile proving
 
