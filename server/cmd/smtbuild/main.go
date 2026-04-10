@@ -33,9 +33,16 @@ type rootInfo struct {
 
 func main() {
 	postRoot := flag.Bool("post-root", false, "Post SMT roots on-chain (reads root.json files, skips SMT build)")
+	exportBinary := flag.Bool("binary", false, "Also export binary format snapshot alongside JSON")
+	convertBinary := flag.String("convert-binary", "", "Convert JSON snapshot to binary format (path to .json.gz input)")
 	flag.Parse()
 
 	cfg := config.Load()
+
+	if *convertBinary != "" {
+		convertJSONToBinary(*convertBinary)
+		return
+	}
 
 	if *postRoot {
 		postRootOnChain(cfg)
@@ -186,6 +193,15 @@ func main() {
 		}
 		log.Printf("[%s] Snapshot exported to %s", iss.ID, snapshotPath)
 
+		if *exportBinary {
+			binaryPath := filepath.Join(issuerDir, "tree-snapshot.bin.gz")
+			if err := snapshot.ExportBinaryFile(tree, parsed.CRLNumber.Uint64(), binaryPath); err != nil {
+				log.Printf("[%s] Warning: binary export failed: %v", iss.ID, err)
+			} else {
+				log.Printf("[%s] Binary snapshot exported to %s", iss.ID, binaryPath)
+			}
+		}
+
 		// Write root.json
 		info := rootInfo{
 			Root:      newRoot,
@@ -300,6 +316,34 @@ func postRootOnChain(cfg *config.Config) {
 	}
 
 	log.Println("Done — on-chain posting complete")
+}
+
+func convertJSONToBinary(jsonPath string) {
+	hasher := smt.NewPoseidonHasher()
+
+	log.Printf("Loading JSON snapshot from %s", jsonPath)
+	tree, crlNumber, err := snapshot.ImportFile(hasher, jsonPath)
+	if err != nil {
+		log.Fatalf("Failed to import JSON snapshot: %v", err)
+	}
+	log.Printf("Loaded: %d entries, root=0x%s, CRL#%d", tree.Count, tree.Root.Text(16)[:16], crlNumber)
+
+	// Output path: same directory, replace .json.gz with .bin.gz
+	outPath := strings.TrimSuffix(jsonPath, ".json.gz") + ".bin.gz"
+	log.Printf("Exporting binary snapshot to %s", outPath)
+	if err := snapshot.ExportBinaryFile(tree, crlNumber, outPath); err != nil {
+		log.Fatalf("Failed to export binary: %v", err)
+	}
+
+	// Report sizes
+	jsonInfo, _ := os.Stat(jsonPath)
+	binInfo, _ := os.Stat(outPath)
+	if jsonInfo != nil && binInfo != nil {
+		log.Printf("JSON: %d bytes, Binary: %d bytes (%.1f%%)",
+			jsonInfo.Size(), binInfo.Size(),
+			float64(binInfo.Size())/float64(jsonInfo.Size())*100)
+	}
+	log.Println("Done")
 }
 
 func readExistingRoot(path string) (string, error) {

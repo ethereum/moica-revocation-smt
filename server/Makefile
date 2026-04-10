@@ -1,10 +1,29 @@
-.PHONY: build build-cli test test-integration proto clean
+.PHONY: build build-cli build-wasm build-binary test test-integration proto clean
 
 build:
 	go build -o bin/smtserver ./cmd/smtserver
 
 build-cli:
 	go build -o bin/smtbuild ./cmd/smtbuild
+
+build-wasm:
+	GOOS=js GOARCH=wasm go build -o wasm/smt.wasm ./wasm/
+	@WASM_JS="$$(go env GOROOT)/lib/wasm/wasm_exec.js"; \
+	if [ ! -f "$$WASM_JS" ]; then WASM_JS="$$(go env GOROOT)/misc/wasm/wasm_exec.js"; fi; \
+	cp "$$WASM_JS" wasm/
+
+build-binary: build-cli
+	./bin/smtbuild --binary
+
+benchmark: build-cli build-wasm
+	@echo "Converting G2 JSON snapshot to binary..."
+	./bin/smtbuild --convert-binary data/g2/tree-snapshot.json.gz
+	cp data/g2/tree-snapshot.bin.gz wasm/
+	@echo ""
+	@echo "=== Ready ==="
+	@echo "Serving at http://localhost:8080/benchmark.html"
+	@echo "Press Ctrl+C to stop"
+	@cd wasm && python3 -m http.server 8080
 
 test:
 	go test ./... -v
