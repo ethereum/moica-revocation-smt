@@ -60,13 +60,22 @@ jobs:
       - name: Check if release needs update
         id: release-check
         run: |
-          # Upload if CRL changed OR if new asset types are missing from the release
+          # Upload if CRL changed OR if any required asset is missing from the release.
           if [ "${{ steps.build.outputs.changed }}" = "true" ]; then
             echo "needs_upload=true" >> "$GITHUB_OUTPUT"
-          elif ! gh release view snapshot-latest --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'smt.wasm'; then
-            echo "needs_upload=true" >> "$GITHUB_OUTPUT"
           else
-            echo "needs_upload=false" >> "$GITHUB_OUTPUT"
+            published=$(gh release view snapshot-latest --json assets --jq '.assets[].name' 2>/dev/null || true)
+            missing=0
+            for required in smt.wasm snapshot-manifest.json; do
+              if ! grep -qx "$required" <<<"$published"; then
+                missing=1; break
+              fi
+            done
+            if [ "$missing" -eq 1 ]; then
+              echo "needs_upload=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "needs_upload=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,6 +122,33 @@ jobs:
             cp "$WASM_JS" wasm/wasm_exec.js
             assets="$assets wasm/wasm_exec.js"
           fi
+          # SHA-256 (decompressed for *.gz, raw otherwise) of every file the
+          # web prover hashes against. Consumed by hydrateManifest() in
+          # zkmopro/zkID's web app for fail-closed cache freshness.
+          MANIFEST=wasm/snapshot-manifest.json
+          sha_raw() { sha256sum "$1" | awk '{print $1}'; }
+          sha_decompressed_gz() { gunzip -c "$1" | sha256sum | awk '{print $1}'; }
+          {
+            echo '{'
+            echo '  "assets": {'
+            first=1
+            emit() {
+              local published="$1" sha="$2"
+              if [ "$first" -eq 1 ]; then first=0; else printf ',\n'; fi
+              printf '    "%s": { "sha256_decompressed": "%s" }' "$published" "$sha"
+            }
+            for gen in g2 g3; do
+              bin="data/${gen}/${gen}-tree-snapshot.bin.gz"
+              [ -f "$bin" ] && emit "${gen}-tree-snapshot.bin.gz" "$(sha_decompressed_gz "$bin")"
+            done
+            [ -f wasm/smt.wasm ] && emit "smt.wasm" "$(sha_raw wasm/smt.wasm)"
+            [ -f wasm/wasm_exec.js ] && emit "wasm_exec.js" "$(sha_raw wasm/wasm_exec.js)"
+            printf '\n'
+            echo '  }'
+            echo '}'
+          } > "$MANIFEST"
+          cat "$MANIFEST"
+          assets="$assets $MANIFEST"
           if [ -n "$assets" ]; then
             gh release create snapshot-latest \
               --title "SMT Snapshot" \
