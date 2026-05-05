@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 4,16 * * *"
   workflow_dispatch:
+    inputs:
+      force_post_root:
+        description: "Post roots on-chain even if CRL data did not change"
+        type: boolean
+        default: false
 
 jobs:
   update:
@@ -123,7 +128,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Post root on-chain
-        if: steps.build.outputs.changed == 'true'
+        if: steps.build.outputs.changed == 'true' || inputs.force_post_root == true
         run: ./bin/smtbuild --post-root
         env:
           DATA_DIR: ./data
