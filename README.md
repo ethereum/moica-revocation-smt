@@ -120,9 +120,14 @@ Service `RevocationProofService` on port 50051 with `GetProof` and `GetStatus` R
 
 **SMTRootStorage.sol** — on-chain registry for SMT roots.
 
-**Deployed on Arbitrum Sepolia:** [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA)
+**Deployed contract:**
 
-The contract stores SMT Merkle roots on-chain so anyone can verify certificate revocation status against a trusted root. A CI relayer updates roots twice daily after rebuilding from MOICA CRL data. Each root is tied to a monotonically increasing CRL number to prevent stale updates. Anyone can call `getRoot(issuerId)` to read the latest root and verify proofs off-chain.
+| Network | Address |
+|---------|---------|
+| Ethereum Mainnet (production) | [`0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1`](https://etherscan.io/address/0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1) |
+| Arbitrum Sepolia (legacy testnet) | [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA) |
+
+The contract stores SMT Merkle roots on Ethereum Mainnet so anyone can verify certificate revocation status against a trusted root. A CI relayer updates roots after rebuilding from MOICA CRL data (cron runs twice daily; a transaction is sent only when the CRL actually changes). Each root is tied to a monotonically increasing CRL number to prevent stale updates. Anyone can call `getRoot(issuerId)` to read the latest root and verify proofs off-chain.
 
 | Function | Description |
 |----------|-------------|
@@ -131,20 +136,21 @@ The contract stores SMT Merkle roots on-chain so anyone can verify certificate r
 
 Issuer IDs: `keccak256("MOICA-G2")`, `keccak256("MOICA-G3")`
 
-Deploy to Arbitrum Sepolia:
+Deploy to Ethereum Mainnet (rehearse on the `sepolia` L1 testnet first):
 
-1. Generate relayer keypair: `cast wallet new`
-2. Fund relayer address with Arbitrum Sepolia ETH
-3. Deploy:
+1. Generate a fresh, dedicated relayer keypair: `cast wallet new`
+2. Fund the relayer address with mainnet ETH (covers gas for ~2 `setRoot` tx per CRL change; keep a buffer for gas spikes)
+3. Deploy with the optimizer-enabled `production` build profile:
 ```bash
 cd onchain-contract
 nvm use 22
 pnpm install
 npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts \
-  --network arbitrumSepolia \
+  --network mainnet --build-profile production \
   --parameters '{"SMTRootStorageModule": {"relayer": "0x<RELAYER_ADDRESS>"}}'
 ```
-4. Set GitHub Actions secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY` (hex, no `0x`), `CONTRACT_ADDRESS`
+4. Verify the source on Etherscan for transparency
+5. Set GitHub Actions secrets (`RPC_URL` → mainnet RPC, `RELAYER_PRIVATE_KEY` hex no `0x`, `CONTRACT_ADDRESS` → deployed address) and optionally the variables `RELAYER_MAX_FEE_GWEI` / `RELAYER_TX_TIMEOUT_SEC` to tune the gas ceiling and confirmation timeout
 
 Post roots on-chain manually (reads `root.json` files, skips gracefully if env vars are unset):
 ```bash
@@ -167,6 +173,8 @@ See [onchain-contract/README.md](onchain-contract/README.md) for detailed setup 
 | `RPC_URL` | — | Ethereum JSON-RPC URL |
 | `RELAYER_PRIVATE_KEY` | — | Hex private key for chain relayer |
 | `CONTRACT_ADDRESS` | — | SMTRootStorage contract address |
+| `RELAYER_MAX_FEE_GWEI` | 100 | Max gas fee per gas the relayer will pay; aborts posting above this ceiling |
+| `RELAYER_TX_TIMEOUT_SEC` | 180 | Per-tx confirmation timeout before a same-nonce fee-bumped resend |
 | `GITHUB_REPO` | `moven0831/moica-revocation-smt` | GitHub repo for snapshot releases |
 
 ## Client-Side WASM
@@ -224,7 +232,7 @@ Web or mobile clients can use the published release artifacts to load an SMT and
 2. **Fetch snapshot** — download `g2-tree-snapshot.bin.gz` and decompress (browser: `DecompressionStream`, native: `gzip` library)
 3. **Build tree** — parse 52-byte binary header → `smtInitTree(nodeCount, depth)` → stream nodes via `smtAddNodeChunk(chunk)` in batches of ~10,000 → `smtFinalize(rootHex, leafCount)`
 4. **Generate proof** — `smtCreateProof(serialNumberHex)` → parse JSON → convert hex to decimal strings → pad siblings to depth 128
-5. **Feed to circuit** — proof fields (`smtRoot`, `smtSiblings[128]`, `smtOldKey`, `smtOldValue`, `smtIsOld0`) become inputs for `SMTNonMembershipVerifier(128)` in the [zkID](https://github.com/zkmopro/zkID) circom circuit
+5. **Feed to circuit** — proof fields (`smtRoot`, `smtSiblings[128]`, `smtOldKey`, `smtOldValue`, `smtIsOld0`) become inputs for `SMTNonMembershipVerifier(128)` in the [zkID](https://github.com/privacy-ethereum/zkID/tree/RSA-X.509-Cert) circom circuit
 
 ### Release Assets
 
@@ -271,7 +279,7 @@ The same binary snapshot and proof format work across platforms:
 1. Build server binary + WASM module
 2. Fetch CRL, build SMT, export JSON + binary snapshots (skipped if merkle root is unchanged)
 3. Upload snapshots, WASM module, and `wasm_exec.js` to GitHub Release (`snapshot-latest`)
-4. Post root on-chain via `smtbuild --post-root` (Arbitrum Sepolia)
+4. Post root on-chain via `smtbuild --post-root` (Ethereum Mainnet), bounded by the `RELAYER_MAX_FEE_GWEI` gas ceiling
 
 Required secrets: `RPC_URL`, `RELAYER_PRIVATE_KEY`, `CONTRACT_ADDRESS` (on-chain posting skips gracefully if unset)
 
@@ -298,4 +306,4 @@ Wire-compatible with `@zk-kit/smt` v1.0.2 (`bigNumbers` mode):
 - [MOICA](https://moica.nat.gov.tw/) — Taiwan citizen digital certificate
 - [Poseidon Hash](https://www.poseidon-hash.info/) — ZK-friendly hash function
 - [Hadeshash spec](https://eprint.iacr.org/2019/458.pdf) — Round number parameters
-- [zkID](https://github.com/zkmopro/zkID) — ZK identity verification project
+- [zkID](https://github.com/privacy-ethereum/zkID/tree/RSA-X.509-Cert) — ZK identity verification project
