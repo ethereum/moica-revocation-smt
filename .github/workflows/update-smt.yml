@@ -135,3 +135,6 @@ jobs:
           RPC_URL: ${{ secrets.RPC_URL }}
           RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
           CONTRACT_ADDRESS: ${{ secrets.CONTRACT_ADDRESS }}
+          # Mainnet gas guardrails. Defaults (100 gwei / 180s) apply if unset.
+          RELAYER_MAX_FEE_GWEI: ${{ vars.RELAYER_MAX_FEE_GWEI }}
+          RELAYER_TX_TIMEOUT_SEC: ${{ vars.RELAYER_TX_TIMEOUT_SEC }}

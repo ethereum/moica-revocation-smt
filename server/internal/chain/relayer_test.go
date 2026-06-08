@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/moven0831/moica-revocation-smt/server/internal/chain/contract"
 )
 
@@ -185,6 +187,97 @@ func TestPostRootStaleCRL(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "stale CRL") {
 		t.Errorf("expected 'stale CRL' in error, got: %v", err)
+	}
+}
+
+func TestPostRootFeeCeilingExceeded(t *testing.T) {
+	env := newTestEnv(t)
+
+	// A 1-wei ceiling is far below any realistic base fee + tip, so the relayer
+	// should refuse to send rather than overpay.
+	env.relayer.maxFeeWei = big.NewInt(1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := env.relayer.PostRoot(ctx, IssuerG2, big.NewInt(123), big.NewInt(100))
+	if err == nil {
+		t.Fatal("expected fee-ceiling error, got nil")
+	}
+	if !errors.Is(err, ErrFeeCeilingExceeded) {
+		t.Fatalf("expected ErrFeeCeilingExceeded, got: %v", err)
+	}
+
+	// Nothing should have been posted.
+	stored, err := env.contract.GetRoot(nil, IssuerG2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Sign() != 0 {
+		t.Errorf("expected no root stored, got %s", stored)
+	}
+}
+
+func TestPostRootWithFeeCeiling(t *testing.T) {
+	env := newTestEnv(t)
+
+	done := make(chan struct{})
+	defer close(done)
+	commitPeriodically(t, env.backend, done)
+
+	// Generous 1000-gwei ceiling — well above the simulated base fee, so the tx
+	// is sent with explicit dynamic fees bounded by the ceiling.
+	env.relayer.maxFeeWei = new(big.Int).Mul(big.NewInt(1000), big.NewInt(params.GWei))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := env.relayer.PostRoot(ctx, IssuerG2, big.NewInt(777), big.NewInt(100))
+	if err != nil {
+		t.Fatalf("PostRoot failed: %v", err)
+	}
+	if tx.Type() != types.DynamicFeeTxType {
+		t.Errorf("expected dynamic-fee tx, got type %d", tx.Type())
+	}
+	if tx.GasFeeCap() == nil || tx.GasFeeCap().Sign() == 0 {
+		t.Errorf("expected non-zero fee cap, got %v", tx.GasFeeCap())
+	}
+	if tx.GasFeeCap().Cmp(env.relayer.maxFeeWei) > 0 {
+		t.Errorf("fee cap %s exceeds ceiling %s", tx.GasFeeCap(), env.relayer.maxFeeWei)
+	}
+
+	stored, err := env.contract.GetRoot(nil, IssuerG2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Cmp(big.NewInt(777)) != 0 {
+		t.Errorf("stored root = %s, want 777", stored)
+	}
+}
+
+func TestPostRootResendOnTimeout(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Never commit, so the tx can't mine and every confirm attempt times out.
+	// The relayer should resend (fee-bumped, same nonce) maxReplacements times,
+	// then give up with a "not confirmed" error rather than hanging.
+	env.relayer.confirmTimeout = 80 * time.Millisecond
+	env.relayer.maxReplacements = 2
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := env.relayer.PostRoot(ctx, IssuerG2, big.NewInt(555), big.NewInt(100))
+	if err == nil {
+		t.Fatal("expected a not-confirmed error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("expected 'not confirmed' error, got: %v", err)
+	}
+	// The caller's context is still alive — failure must come from exhausting
+	// replacements, not from the parent context expiring.
+	if ctx.Err() != nil {
+		t.Fatalf("parent context should still be alive, got: %v", ctx.Err())
 	}
 }
 

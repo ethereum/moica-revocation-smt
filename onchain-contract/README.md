@@ -6,9 +6,10 @@ On-chain registry for Sparse Merkle Tree roots from MOICA Certificate Revocation
 
 | Network | Address |
 |---------|---------|
-| Arbitrum Sepolia | [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA) |
+| Ethereum Mainnet (production) | `0x…` — _set after deploy; link to [etherscan.io](https://etherscan.io)_ |
+| Arbitrum Sepolia (legacy testnet) | [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA) |
 
-The CRL pipeline (fetch → parse → build SMT) produces a Merkle root per issuer, which the CI relayer posts on-chain via `setRoot()`. The contract enforces monotonic CRL numbers to prevent stale updates. Anyone can read the latest root with `getRoot(issuerId)` and verify membership/non-membership proofs off-chain.
+The CRL pipeline (fetch → parse → build SMT) produces a Merkle root per issuer, which the CI relayer posts on Ethereum Mainnet via `setRoot()`. The contract enforces monotonic CRL numbers to prevent stale updates. Anyone can read the latest root with `getRoot(issuerId)` and verify membership/non-membership proofs off-chain.
 
 ## Contract
 
@@ -73,22 +74,25 @@ Save the private key (without `0x` prefix) and note the address.
 
 ### 2. Fund the relayer
 
-Send Arbitrum Sepolia ETH to the relayer address. You can get testnet ETH from an [Arbitrum Sepolia faucet](https://www.alchemy.com/faucets/arbitrum-sepolia).
+Send mainnet ETH to the relayer address — enough to cover gas for ~2 `setRoot` transactions per CRL change, with a buffer for gas spikes. Use a fresh, dedicated key (do not reuse a testnet key).
 
 ### 3. Deploy contract
 
-Local/default network:
+Rehearse on the Ethereum Sepolia L1 testnet first (requires `SEPOLIA_RPC_URL` and `SEPOLIA_PRIVATE_KEY`) — it exercises real EIP-1559 and the relayer fee ceiling, unlike the Arbitrum testnet:
 ```bash
 npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts \
+  --network sepolia --build-profile production \
   --parameters '{"SMTRootStorageModule": {"relayer": "0x<RELAYER_ADDRESS>"}}'
 ```
 
-Arbitrum Sepolia (requires `ARB_SEPOLIA_RPC_URL` and `ARB_SEPOLIA_PRIVATE_KEY` env vars):
+Ethereum Mainnet (requires `MAINNET_RPC_URL` and `MAINNET_PRIVATE_KEY`), deployed with the optimizer-enabled `production` profile:
 ```bash
 npx hardhat ignition deploy ignition/modules/SMTRootStorage.ts \
-  --network arbitrumSepolia \
+  --network mainnet --build-profile production \
   --parameters '{"SMTRootStorageModule": {"relayer": "0x<RELAYER_ADDRESS>"}}'
 ```
+
+Then verify the contract source on Etherscan for transparency.
 
 ### 4. Configure GitHub Actions secrets
 
@@ -96,9 +100,16 @@ Set these repository secrets for automated on-chain posting:
 
 | Secret | Value |
 |--------|-------|
-| `RPC_URL` | Arbitrum Sepolia RPC endpoint (e.g. from Alchemy/Infura) |
+| `RPC_URL` | Ethereum Mainnet RPC endpoint (e.g. from Alchemy/Infura) |
 | `RELAYER_PRIVATE_KEY` | Hex private key without `0x` prefix |
 | `CONTRACT_ADDRESS` | Deployed `SMTRootStorage` contract address |
+
+Optionally set these repository **variables** to tune mainnet gas behavior (defaults apply if unset):
+
+| Variable | Default | Value |
+|----------|---------|-------|
+| `RELAYER_MAX_FEE_GWEI` | 100 | Max gas fee per gas the relayer will pay; it skips posting above this ceiling |
+| `RELAYER_TX_TIMEOUT_SEC` | 180 | Per-tx confirmation timeout before a same-nonce fee-bumped resend |
 
 ## CI/CD Integration
 

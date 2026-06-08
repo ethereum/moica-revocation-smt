@@ -75,7 +75,7 @@ Simple root registry: `setRoot(bytes32 issuerId, uint256 newRoot, uint256 crlNum
 ## CI/CD
 
 - **ci.yml** — On push/PR: Go unit tests + build, Hardhat contract tests, E2E integration tests (downloads real G2 snapshot)
-- **update-smt.yml** — Cron (04:00 & 16:00 UTC): smtbuild → commit snapshots → upload to `snapshot-latest` release → `smtbuild --post-root` posts roots on-chain (Arbitrum Sepolia)
+- **update-smt.yml** — Cron (04:00 & 16:00 UTC): smtbuild → commit snapshots → upload to `snapshot-latest` release → `smtbuild --post-root` posts roots on-chain (Ethereum Mainnet). The relayer enforces a `RELAYER_MAX_FEE_GWEI` gas ceiling and does same-nonce fee-bumped resends on confirmation timeout (`RELAYER_TX_TIMEOUT_SEC`)
 
 ## Data Scale
 

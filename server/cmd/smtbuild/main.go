@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -252,7 +253,10 @@ func postRootOnChain(cfg *config.Config) {
 	}
 	defer client.Close()
 
-	relayer, err := chain.NewRelayer(client, cfg.RelayerPrivateKey, cfg.ContractAddress)
+	relayer, err := chain.NewRelayer(client, cfg.RelayerPrivateKey, cfg.ContractAddress,
+		chain.WithMaxFeeGwei(cfg.RelayerMaxFeeGwei),
+		chain.WithConfirmTimeout(time.Duration(cfg.RelayerTxTimeoutSec)*time.Second),
+	)
 	if err != nil {
 		log.Fatalf("Failed to create relayer: %v", err)
 	}
@@ -274,7 +278,12 @@ func postRootOnChain(cfg *config.Config) {
 		{ID: "g3", IssuerID: chain.IssuerG3},
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	// Allow enough wall-clock for fee-bumped replacements across every issuer.
+	overall := time.Duration(len(entries))*relayer.MaxPostDuration() + time.Minute
+	if overall < 5*time.Minute {
+		overall = 5 * time.Minute
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), overall)
 	defer cancel()
 	for _, iss := range entries {
 		rootPath := filepath.Join(cfg.DataDir, iss.ID, "root.json")
@@ -307,6 +316,10 @@ func postRootOnChain(cfg *config.Config) {
 		if err != nil {
 			if strings.Contains(err.Error(), "stale CRL") {
 				log.Printf("[%s] Already posted (stale CRL), skipping", iss.ID)
+				continue
+			}
+			if errors.Is(err, chain.ErrFeeCeilingExceeded) {
+				log.Printf("[%s] Skipping: %v (raise RELAYER_MAX_FEE_GWEI or retry when gas drops)", iss.ID, err)
 				continue
 			}
 			log.Printf("[%s] Failed to post root: %v", iss.ID, err)
