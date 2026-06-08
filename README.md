@@ -232,7 +232,7 @@ Web or mobile clients can use the published release artifacts to load an SMT and
 2. **Fetch snapshot** — download `g2-tree-snapshot.bin.gz` and decompress (browser: `DecompressionStream`, native: `gzip` library)
 3. **Build tree** — parse 52-byte binary header → `smtInitTree(nodeCount, depth)` → stream nodes via `smtAddNodeChunk(chunk)` in batches of ~10,000 → `smtFinalize(rootHex, leafCount)`
 4. **Generate proof** — `smtCreateProof(serialNumberHex)` → parse JSON → convert hex to decimal strings → pad siblings to depth 128
-5. **Feed to circuit** — proof fields (`smtRoot`, `smtSiblings[128]`, `smtOldKey`, `smtOldValue`, `smtIsOld0`) become inputs for `SMTNonMembershipVerifier(128)` in the [zkID](https://github.com/zkmopro/zkID) circom circuit
+5. **Feed to circuit** — proof fields (`smtRoot`, `smtSiblings[128]`, `smtOldKey`, `smtOldValue`, `smtIsOld0`) become inputs for `SMTNonMembershipVerifier(128)` in the [zkID](https://github.com/privacy-ethereum/zkID/tree/RSA-X.509-Cert) circom circuit
 
 ### Release Assets
 
@@ -306,4 +306,4 @@ Wire-compatible with `@zk-kit/smt` v1.0.2 (`bigNumbers` mode):
 - [MOICA](https://moica.nat.gov.tw/) — Taiwan citizen digital certificate
 - [Poseidon Hash](https://www.poseidon-hash.info/) — ZK-friendly hash function
 - [Hadeshash spec](https://eprint.iacr.org/2019/458.pdf) — Round number parameters
-- [zkID](https://github.com/zkmopro/zkID) — ZK identity verification project
+- [zkID](https://github.com/privacy-ethereum/zkID/tree/RSA-X.509-Cert) — ZK identity verification project
