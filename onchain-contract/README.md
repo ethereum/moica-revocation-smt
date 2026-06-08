@@ -6,7 +6,7 @@ On-chain registry for Sparse Merkle Tree roots from MOICA Certificate Revocation
 
 | Network | Address |
 |---------|---------|
-| Ethereum Mainnet (production) | `0x…` — _set after deploy; link to [etherscan.io](https://etherscan.io)_ |
+| Ethereum Mainnet (production) | [`0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1`](https://etherscan.io/address/0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1) |
 | Arbitrum Sepolia (legacy testnet) | [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA) |
 
 The CRL pipeline (fetch → parse → build SMT) produces a Merkle root per issuer, which the CI relayer posts on Ethereum Mainnet via `setRoot()`. The contract enforces monotonic CRL numbers to prevent stale updates. Anyone can read the latest root with `getRoot(issuerId)` and verify membership/non-membership proofs off-chain.

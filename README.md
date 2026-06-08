@@ -124,7 +124,7 @@ Service `RevocationProofService` on port 50051 with `GetProof` and `GetStatus` R
 
 | Network | Address |
 |---------|---------|
-| Ethereum Mainnet (production) | `0x…` — _set after deploy; link to [etherscan.io](https://etherscan.io)_ |
+| Ethereum Mainnet (production) | [`0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1`](https://etherscan.io/address/0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1) |
 | Arbitrum Sepolia (legacy testnet) | [`0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA`](https://sepolia.arbiscan.io/address/0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA) |
 
 The contract stores SMT Merkle roots on Ethereum Mainnet so anyone can verify certificate revocation status against a trusted root. A CI relayer updates roots after rebuilding from MOICA CRL data (cron runs twice daily; a transaction is sent only when the CRL actually changes). Each root is tied to a monotonically increasing CRL number to prevent stale updates. Anyone can call `getRoot(issuerId)` to read the latest root and verify proofs off-chain.
